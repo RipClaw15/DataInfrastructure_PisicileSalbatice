@@ -2,6 +2,7 @@ import { getMe, getMyEvents, POLL_SECONDS } from './api'
 import Header from './Header'
 import PhoneCard from './PhoneCard'
 import { usePolling } from './usePolling'
+import ReadingsPanel from './ReadingsPanel'
 
 interface Props {
     onUnpair: () => void
@@ -25,7 +26,7 @@ export default function Dashboard({ onUnpair }: Props) {
 
             <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
                 <PhoneCard me={me.data} />
-                {/* readings panel goes here */}
+                <ReadingsPanel events={events.data?.events ?? null} />
             </main>
         </div>
     )
