@@ -40,8 +40,8 @@ From the repo root:
 ```bash
 python mobile/dev-server/server.py      # or: py mobile/dev-server/server.py
 ```
-It finds your laptop's IP and prints the exact line to put in `mobile/.env` (gitignored; create it by copying `mobile/.env.example`).
-Paste that line in, then (re)start Expo. After that it prints every reading it receives.
+It finds your laptop's IP and tells you what to do with `mobile/.env` (gitignored): `mobile/.env OK`, or the exact command and line to create or update it.
+Do what it says, then (re)start Expo. After that it prints every reading it receives.
 When Windows Firewall asks, click **Allow access**, and tick **Public** too if you're on a hotspot.
 See [`dev-server/README.md`](dev-server/README.md).
 
@@ -62,7 +62,7 @@ The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
 | Problem | Fix |
 |---|---|
 | Expo Go: *"Could not connect to the server"* | Phone and laptop aren't on the same network, or the network blocks device-to-device traffic → use the phone's hotspot. Quick test: in the phone's browser open the dummy server's address with port `8081` and `/status` (e.g. `http://172.20.10.7:8081/status`); it should say `packager-status:running`. |
-| Worked before, fails after switching network | The QR code keeps the IP from when Expo started. Restart the dummy server, put the line it prints in `.env`, and restart `npx expo start`. |
+| Worked before, fails after switching network | The QR code keeps the IP from when Expo started. Restart the dummy server (it tells you if `.env` has an old IP) and `npx expo start`. |
 | iPhone can't reach the laptop at all | Settings → Privacy & Security → **Local Network** → Expo Go on. |
 | Phone browser can't open the laptop's URL | Set the Wi-Fi/hotspot network to **Private** (see step 3), or allow Node.js and Python in Windows Defender Firewall → "Allow an app through firewall" for Public too. |
 | *"You need to be signed in to Expo Go and Expo CLI"* | Step 2: same Expo account on laptop and phone. |

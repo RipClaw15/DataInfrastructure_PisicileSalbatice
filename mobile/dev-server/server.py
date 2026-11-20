@@ -8,9 +8,11 @@ and keeps them in memory. Standard library only, so there is nothing to install.
 
 import argparse
 import json
+import platform
 import socket
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axes")
@@ -99,6 +101,32 @@ def lan_ip() -> str:
             return "127.0.0.1"
 
 
+def read_api_url(env_file: Path) -> str | None:
+    """EXPO_PUBLIC_API_URL from mobile/.env, "" if set but empty, None if the file or the variable is missing."""
+    if not env_file.exists():
+        return None
+    for line in env_file.read_text().splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip() == "EXPO_PUBLIC_API_URL":
+            return value.strip().strip("'\"")
+    return None
+
+
+ON_WINDOWS = platform.system() == "Windows"
+
+
+def print_env_status(expected_url: str) -> None:
+    """One line: is mobile/.env pointing at this server? If not, what to put in it."""
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if read_api_url(env_file) == expected_url:
+        print("mobile/.env OK")
+        return
+
+    copy = "copy mobile\\.env.example mobile\\.env" if ON_WINDOWS else "cp mobile/.env.example mobile/.env"
+    create = f"{copy}, then " if not env_file.exists() else ""
+    print(f"! {create}set in mobile/.env: EXPO_PUBLIC_API_URL={expected_url} and restart Expo")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8000)
@@ -107,7 +135,7 @@ def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     url = f"http://{lan_ip()}:{port}"
     print(f"Dummy mobile API on {url}")
-    print(f"Set in mobile/.env: EXPO_PUBLIC_API_URL={url} (then restart Expo)")
+    print_env_status(url)
     print("Waiting for readings... (Ctrl+C to stop)\n")
     try:
         server.serve_forever()

@@ -10,7 +10,7 @@ python mobile/dev-server/server.py             # port 8000 (or: py mobile/dev-se
 python mobile/dev-server/server.py --port 8001
 ```
 
-On startup it prints its URL and the line to put in `mobile/.env`.
+On startup it prints its URL and checks `mobile/.env`: either `mobile/.env OK`, or the exact line to put in it.
 
 | Endpoint | Does |
 |---|---|
