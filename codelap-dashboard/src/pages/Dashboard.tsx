@@ -59,7 +59,7 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
 
     return (
         <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-5 p-6">
-            <Header lastRefreshed={events.lastRefreshed} stale={backendDown} onUnpair={onUnpair} />
+            <Header lastRefreshed={events.lastRefreshed} onUnpair={onUnpair} />
 
             {backendDown && (
                 <div role="alert" className="rounded-xl bg-warn-soft px-5 py-3 text-base text-warn">
