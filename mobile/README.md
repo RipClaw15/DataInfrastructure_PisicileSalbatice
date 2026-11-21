@@ -63,6 +63,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
   The phone now sends a reading every second; the dummy server prints `== ARMED` and how far each reading has turned from the resting position.
   Pick the phone up: the server prints `!! ALERT picked_up …`, and within a second the phone turns **red: MOVED** with the time.
   It stays red (the alarm stays on) until you tap **Disarm**. Mock mode never turns red: alerts need the dummy server.
+  After the alert, every reading carries the live GPS location: the red screen shows "Now at …" and the server prints `gps=…`.
 - **Keep the app open while armed:** phones pause apps in the background, so locking the phone or leaving the app stops the readings. The guarding screen keeps the phone from locking by itself.
 
 ## Troubleshooting
@@ -84,6 +85,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 | `src/GuardScreen.tsx` | The dark "GUARDING" screen shown while armed (keeps the screen awake) |
 | `src/useGuard.ts` | Arm/disarm and the one-reading-per-second auto-send |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
+| `src/location.ts` | GPS hook (`expo-location`, while the app is open); sent with Arm, with Send reading, and with every reading after an alert |
 | `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |
 | `src/deviceId.ts` | Creates `phone-xxxxxxxx` once and keeps it |
 | `dev-server/` | Dummy API for testing the app on its own + 189 captured real readings |
