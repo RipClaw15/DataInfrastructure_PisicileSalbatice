@@ -119,7 +119,7 @@ export default function App() {
 
   const reading = sensor.status === 'ready' ? sensor.reading : null;
   const location = gps.status === 'ready' ? gps.point : null;
-  const guard = useGuard(deviceId, reading, location, simulateError);
+  const guard = useGuard(deviceId, reading, simulateError);
   const busy = sendStatus.kind === 'sending' || sendStatus.kind === 'retrying';
   const canSend = reading !== null && deviceId !== null && !busy;
   const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed' && dashboard?.paired === true;

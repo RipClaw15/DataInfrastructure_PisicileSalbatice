@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { arm as armRequest, buildPayload, disarm as disarmRequest, getStatus, sendEvent, type Alert } from './api';
-import type { GeoPoint } from './location';
+import { requestFix, type GeoPoint } from './location';
 import { angleDeg, meanAxes, type Axes } from './motion';
 import { utcNow, type Reading } from './sensor';
 
@@ -9,7 +9,7 @@ import { utcNow, type Reading } from './sensor';
  * While armed the phone sends only when something changes (the backend decides what to store):
  * - a reading as soon as it turns more than MOVE_SEND_DEG from the last one sent (at most one per second; after an alert too),
  * - a heartbeat every HEARTBEAT_MS, so the server can tell "lying still" from "gone silent",
- * - in ALERT, the live location with every reading, and a reading whenever the location changes (every 10 m).
+ * - in ALERT, a fresh position every ALERT_FIX_INTERVAL_MS, each sent with a reading (and with every other reading).
  * Measured: on a table the direction wobbles 0.1-0.65 deg; picking the phone up turns it 25 deg or more.
  */
 const MOVE_SEND_DEG = 2;
@@ -17,6 +17,13 @@ const MIN_SEND_GAP_MS = 1000;
 const HEARTBEAT_MS = 30_000;
 /** The phone also asks for the state right after sending a movement, so an alert shows up at once. */
 const STATUS_POLL_INTERVAL_MS = 10_000;
+/** In ALERT, how often to ask for the phone's position, so the dashboard map follows it. */
+const ALERT_FIX_INTERVAL_MS = 5000;
+/**
+ * How long, from Start guarding, to wait for the position. It's kept for the whole session, so it's worth waiting
+ * for a precise one; the countdown ends as soon as it's there (and the phone lies still), without one after this.
+ */
+const ARM_FIX_TIMEOUT_MS = 30_000;
 /** Arming delay: time to put the phone down after tapping Arm. */
 const SETTLE_MIN_MS = 5000;
 /**
@@ -51,7 +58,7 @@ type Sent = { at: number; axes: Axes; location: GeoPoint | null };
  *
  * Sends don't retry: the next movement or heartbeat follows anyway.
  */
-export function useGuard(deviceId: string | null, reading: Reading | null, location: GeoPoint | null, simulateError: boolean) {
+export function useGuard(deviceId: string | null, reading: Reading | null, simulateError: boolean) {
   const [phase, setPhase] = useState<GuardPhase>('disarmed');
   const [armedAt, setArmedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,8 +72,6 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
   // The effects below read the newest values through refs instead of restarting every 100 ms.
   const readingRef = useRef(reading);
   readingRef.current = reading;
-  const locationRef = useRef(location);
-  locationRef.current = location;
   const simulateErrorRef = useRef(simulateError);
   simulateErrorRef.current = simulateError;
   const phaseRef = useRef(phase);
@@ -76,6 +81,11 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
   const samplesRef = useRef<Sample[]>([]);
   const lastSentRef = useRef<Sent | null>(null);
   const sendingRef = useRef(false);
+  /** The newest position asked for during this alert, sent with every reading. */
+  const fixRef = useRef<GeoPoint | null>(null);
+  /** The request for the position asked for at Start guarding (null once cancelled), and its answer once there. */
+  const armFixRef = useRef<Promise<GeoPoint | null> | null>(null);
+  const [armFix, setArmFix] = useState<{ point: GeoPoint | null } | null>(null);
 
   // Settling: collect readings until the phone has been still long enough, then arm.
   useEffect(() => {
@@ -91,17 +101,18 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     const still = coversWindow && samples.every((s) => angleDeg(s.axes, rest) <= STILL_MAX_DEG);
     setIsStill(still);
 
-    if (still && now - settleStartedAt >= SETTLE_MIN_MS) {
-      void armWith(rest);
+    // Also waits for the position asked for at Start guarding (or its timeout); Cancel still works meanwhile.
+    if (still && now - settleStartedAt >= SETTLE_MIN_MS && armFix) {
+      void armWith(rest, armFix.point);
     }
-  }, [phase, reading, settleStartedAt]);
+  }, [phase, reading, settleStartedAt, armFix]);
 
   /** Sends the current reading, with the live location once in ALERT (the phone may be on the move). */
   async function sendReading(checkStatusAfter: boolean) {
     const current = readingRef.current;
     if (!deviceId || !current || sendingRef.current) return;
     sendingRef.current = true;
-    const liveLocation = alertRef.current ? locationRef.current : null;
+    const liveLocation = alertRef.current ? fixRef.current : null;
     lastSentRef.current = { at: Date.now(), axes: { x: current.x, y: current.y, z: current.z }, location: liveLocation };
     const result = await sendEvent(buildPayload(deviceId, current, liveLocation), {
       retry: false,
@@ -121,7 +132,9 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     const result = await getStatus(deviceId);
     if (phaseRef.current !== 'armed') return;
     if (result.ok && result.data.state === 'ALERT' && result.data.last_alert) {
-      setAlert(result.data.last_alert);
+      // Keep the same object for the same alert, so the effects that depend on it don't restart on every check.
+      const next = result.data.last_alert;
+      setAlert((current) => (current?.id === next.id ? current : next));
     }
   }
 
@@ -135,13 +148,29 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     }
   }, [phase, alert, reading]);
 
-  // In ALERT: send whenever the location changes (right away for the first one).
+  // In ALERT: ask for a fresh position right away and then every few seconds, and send each one.
+  const inAlert = alert !== null;
   useEffect(() => {
-    if (phase !== 'armed' || !alert || !location) return;
-    const last = lastSentRef.current?.location;
-    if (last && last.lat === location.lat && last.lon === location.lon) return;
-    void sendReading(false);
-  }, [phase, alert, location]);
+    if (phase !== 'armed' || !inAlert) return;
+    let cancelled = false;
+    let asking = false;
+    const ask = () => {
+      if (asking) return;
+      asking = true;
+      void requestFix().then((point) => {
+        asking = false;
+        if (cancelled || !point) return;
+        fixRef.current = point;
+        void sendReading(false);
+      });
+    };
+    ask();
+    const timer = setInterval(ask, ALERT_FIX_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [phase, inAlert]);
 
   // Armed: a first reading right away, then heartbeats and a status check now and then.
   useEffect(() => {
@@ -166,6 +195,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     void getStatus(deviceId).then((result) => {
       if (cancelled || !result.ok || phaseRef.current !== 'disarmed' || result.data.state === 'DISARMED') return;
       lastSentRef.current = null;
+      fixRef.current = null;
       setArmedAt(result.data.armed_at);
       setAlert(result.data.state === 'ALERT' ? result.data.last_alert : null);
       setPhase('armed');
@@ -182,22 +212,34 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     setError(null);
     setLastSession(null);
     setSettleStartedAt(Date.now());
+    // Asked for now, so it's usually there by the end of the countdown.
+    setArmFix(null);
+    const request = requestFix(ARM_FIX_TIMEOUT_MS);
+    armFixRef.current = request;
+    void request.then((point) => {
+      if (armFixRef.current === request) setArmFix({ point });
+    });
     setPhase('settling');
   }
 
   function cancel() {
+    armFixRef.current = null;
+    setArmFix(null);
     setSettleStartedAt(null);
     setPhase('disarmed');
   }
 
-  async function armWith(rest: Axes) {
+  async function armWith(rest: Axes, location: GeoPoint | null) {
     if (!deviceId) return;
     setPhase('arming');
     setSettleStartedAt(null);
     const restReading: Reading = { ...rest, magnitude: Math.round(Math.hypot(rest.x, rest.y, rest.z) * 1000) / 1000, takenAt: utcNow() };
-    const result = await armRequest(deviceId, restReading, locationRef.current, { simulateError: simulateErrorRef.current });
+    armFixRef.current = null;
+    setArmFix(null);
+    const result = await armRequest(deviceId, restReading, location, { simulateError: simulateErrorRef.current });
     if (result.ok) {
       lastSentRef.current = null;
+      fixRef.current = null;
       setArmedAt(result.data.armed_at ?? restReading.takenAt);
       setStats(EMPTY_STATS);
       setAlert(null);

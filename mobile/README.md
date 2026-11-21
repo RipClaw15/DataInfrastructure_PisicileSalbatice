@@ -72,7 +72,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
   Turn **Stealth** off to see the **GUARDING** screen (timer, sent/failed) and the red **MOVED** screen while testing; Disarm still asks for the PIN.
 - **What it sends while armed:** one reading right away, then a reading only when the phone turns more than 2° (at most one per second),
   plus a heartbeat every 30 s. The dummy server prints `== ARMED` and how far each reading has turned from the resting position.
-  Pick the phone up: the server prints `!! ALERT picked_up …`. From then on the phone sends a reading whenever its location changes (every 10 m or so),
+  Pick the phone up: the server prints `!! ALERT picked_up …`. From then on the phone sends a reading with a fresh location every 5 s,
   with the live GPS location (`gps=…` on the server; "Now at …" on the MOVED screen). The alarm stays on until you disarm.
   Mock mode never raises an alert: alerts need the dummy server.
 - **Keep the app open while armed:** phones pause apps in the background, so locking the phone or leaving the app stops the readings. The guarding screen keeps the phone from locking by itself.
@@ -102,7 +102,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 | `src/useGuard.ts` | Arm/disarm and what gets sent while armed (on movement, heartbeat, location after an alert) |
 | `src/theme.ts` | Colours and typeface: the same as the dashboard (`codelap-dashboard/src/index.css`) |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
-| `src/location.ts` | GPS hook (`expo-location`, while the app is open); sent when guarding starts, with Send reading, and with every reading after an alert |
+| `src/location.ts` | GPS (`expo-location`, while the app is open): asked for when guarding starts and every 5 s during an alert, not watched all the time |
 | `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |
 | `src/deviceId.ts` | Creates `phone-xxxxxxxx` once and keeps it |
 | `dev-server/` | Dummy API for testing the app on its own + 189 captured real readings |
