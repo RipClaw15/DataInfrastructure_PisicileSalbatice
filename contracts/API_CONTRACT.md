@@ -155,13 +155,13 @@ Empty list before the first reading. Since v1 these are the **kept** readings on
 Arm the phone → it sends readings when it moves (plus a heartbeat) → the **backend** compares each reading with the armed position and creates **alerts** → the dashboard shows them.
 
 ### What the phone sends while armed
-Only what's worth storing, so the database isn't flooded (about 120 readings an hour for a phone lying still):
+Only when something changes, plus a heartbeat (about 120 readings an hour for a phone lying still, so little battery and data):
 | When | Sends |
 |---|---|
 | Right after arming | one reading |
 | Direction turns **> 2°** from the last reading sent | a reading at once, at most 1 per second |
 | Nothing sent for **30 s** | a heartbeat (the current reading) |
-| In `ALERT` | a reading with the live `location` whenever the location changes, plus the heartbeat |
+| In `ALERT` | the same, with the live `location` on every reading, plus a reading whenever the location changes |
 
 Readings are the same `POST /api/events` as in v0. A phone lying still sends one every 30 s, so `online` (5-minute window) stays true; no heartbeat means it went silent.
 
@@ -171,6 +171,22 @@ Every reading is checked for an alert, but only these are kept as rows: **arm**,
 Everything else is answered `201` with `stored: false` and only held in memory as the device's latest reading (for `live`, `last_seen` and `online`).
 The phone sends less (battery, data) and the backend keeps less (database): both together.
 The phone shows nothing while armed (a black screen that looks dead) and disarms only with a PIN on the phone; the **dashboard** is where the alert shows up.
+
+### Why this doesn't flood the database
+Sending a reading and storing it are two different things. The phone sends whenever the dashboard needs to see something (so the 3D phone
+and the map follow a moving phone), but the backend writes a row only for a **state change** or a **GPS fix that's 30 s and 25 m newer**.
+Everything else replaces the one in-memory "latest reading" per phone, which `live` serves.
+
+Example: armed for an hour, then taken and carried off for 10 minutes.
+| | Sent by the phone | Stored as rows |
+|---|---|---|
+| 50 min lying still | ~100 heartbeats | 1 (`armed`) |
+| Picked up | 1 | 1 (`picked_up`, with the first GPS fix) |
+| 10 min on the move | up to ~600 (movement, at most 1/s) + location changes | ~20 (`gps_update`, at most one per 30 s) |
+| Disarmed | (disarm request) | 1 (`disarmed`) |
+| **Total** | **~700** | **~23** |
+
+The number of rows depends on what **happened** (arm, alert, distance travelled, disarm), not on how often the phone sends.
 
 ### States
 | State | Meaning | How you get there |

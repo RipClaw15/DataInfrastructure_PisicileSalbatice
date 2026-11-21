@@ -125,13 +125,13 @@ Turns the phone into the guard. Details and rules: [`API_CONTRACT.md` → v1](..
    Response: the status (`state: "GUARDING"`). Sample: `arm_request.json`, `status_guarding.json`.
    Optional: add `"location": {"lat", "lon", "accuracy_m"}` from `expo-location` (it works in Expo Go). Leave it out without a fix or permission.
    The same `location` (live) goes on every reading once the status is `ALERT`, and on the manual Send button's reading.
-4. **While armed, send only what's worth storing** to `POST /api/events` (same JSON as v0), so the database isn't flooded:
+4. **While armed, send only when something changes** to `POST /api/events` (same JSON as v0), to save battery and data. The backend decides what to store, so this doesn't flood the database ([why](../API_CONTRACT.md#why-this-doesnt-flood-the-database)):
    | When | Send |
    |---|---|
    | right after arming | one reading |
    | the direction turns **> 2°** from the last reading sent | at once, at most 1 per second (table noise is 0.1–0.65°, a pick-up 25°+) |
    | nothing sent for **30 s** | a heartbeat (the current reading), so "lying still" differs from "gone silent" |
-   | in `ALERT` | a reading with the live `location` whenever the location changes (`expo-location` reports every 10 m), plus the heartbeat |
+   | in `ALERT` | the live `location` on every reading; movement keeps being sent (so the dashboard's 3D phone follows), plus a reading whenever the location changes (`expo-location` reports every 10 m) |
 
    About 120 readings an hour for a phone lying still (instead of 3,600). Keep the manual Send button for testing.
 5. **Stealth screen** (`expo-keep-awake` keeps it on; `expo-brightness` at 0; status bar hidden): **pitch black** as soon as it arms. On AMOLED the phone looks dead.
