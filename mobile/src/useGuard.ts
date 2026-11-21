@@ -158,6 +158,23 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     };
   }, [phase, deviceId]);
 
+  // On launch: if the server still has this phone guarding (the app was closed or the phone restarted), carry on
+  // where it left off instead of going quiet, in ALERT too. The resting position stays the server's.
+  useEffect(() => {
+    if (!deviceId) return;
+    let cancelled = false;
+    void getStatus(deviceId).then((result) => {
+      if (cancelled || !result.ok || phaseRef.current !== 'disarmed' || result.data.state === 'DISARMED') return;
+      lastSentRef.current = null;
+      setArmedAt(result.data.armed_at);
+      setAlert(result.data.state === 'ALERT' ? result.data.last_alert : null);
+      setPhase('armed');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceId]);
+
   function arm() {
     if (!deviceId || !reading) return;
     samplesRef.current = [];
