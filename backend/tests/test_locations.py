@@ -23,7 +23,7 @@ def test_startup_adds_gps_tables_without_losing_readings(client, auth_headers, e
     main = importlib.import_module("backend.app.main")
     monkeypatch.setattr(main, "get_engine", lambda: engine)
     monkeypatch.setattr(main.settings, "database_url", "configured-for-test")
-    # The overridden engine and fixture dependency keep this in memory.
+    
     with TestClient(app) as restarted:
         events = restarted.get("/api/me/events", headers=auth_headers).json()["events"]
         assert events[0]["id"] == created["id"]

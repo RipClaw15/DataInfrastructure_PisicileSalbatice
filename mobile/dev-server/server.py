@@ -20,14 +20,14 @@ from urllib.parse import parse_qs, urlparse
 
 REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axes")
 
-# Contract v1 detection: moved more than this from the resting position -> one picked_up alert.
+
 PICKED_UP_DEG = 15.0
 
 events: list[dict] = []
-armed: dict[str, dict] = {}  # device_id -> {"armed_at", "axes" (resting position), "location" (where armed), "alert" (this session's, or None)}
-alerts: list[dict] = []  # all sessions, oldest first
+armed: dict[str, dict] = {}  
+alerts: list[dict] = []  
 last_seen: dict[str, str] = {}
-last_location: dict[str, dict] = {}  # device_id -> location of the newest reading that had one
+last_location: dict[str, dict] = {}  
 
 DEVICE_PATH = re.compile(r"^/api/devices/([a-z0-9-]{3,64})/(arm|disarm|status|alerts)$")
 
@@ -206,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, status(device_id))
 
     def log_message(self, format, *args) -> None:
-        pass  # readings are printed in do_POST; skip the default access log
+        pass  
 
 
 def lan_ip() -> str:

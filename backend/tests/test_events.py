@@ -72,7 +72,7 @@ def test_preserves_reported_magnitude(client, auth_headers, payload):
 
 def test_existing_history_remains_readable(client, auth_headers, engine):
     samples = json.loads((SAMPLES / "events.json").read_text())["events"]
-    # Existing, pre-retention history must keep its response shape and ordering.
+    
     with Session(engine) as db:
         for event in reversed(samples):
             db.add(Event(

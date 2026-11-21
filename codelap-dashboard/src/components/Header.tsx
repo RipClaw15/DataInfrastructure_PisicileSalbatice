@@ -9,7 +9,7 @@ type HeaderProps = {
 
 const pill = 'inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-sm'
 
-// The landing page's hexagon mark (.sp-mark in src/styles/landing.css).
+
 const mark =
     'grid h-9 w-8 place-items-center bg-accent text-lg text-[#0c1620] [clip-path:polygon(50%_0,100%_17%,100%_66%,50%_100%,0_66%,0_17%)]'
 

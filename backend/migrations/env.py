@@ -2,7 +2,7 @@ from alembic import context
 
 from app.config import settings
 from app.db import Base, get_engine
-from app import models  # noqa: F401 — registers model tables in Base.metadata
+from app import models  
 
 
 if context.is_offline_mode():

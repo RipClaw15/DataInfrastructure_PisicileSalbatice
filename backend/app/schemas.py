@@ -77,7 +77,7 @@ class ArmRequest(BaseModel):
         if not isinstance(value, (str, datetime)):
             raise ValueError("timestamp must be an ISO 8601 string with timezone")
         if isinstance(value, str):
-            # Pydantic also accepts epoch strings; the API contract requires ISO.
+            
             try:
                 datetime.fromisoformat(value)
             except ValueError:
@@ -101,7 +101,7 @@ class EventCreated(BaseModel):
     id: int
     device_id: str
     received_at: datetime
-    # id=0 is an accepted transient reading, with no database row.
+    
     stored: bool
 
     @field_serializer("received_at")

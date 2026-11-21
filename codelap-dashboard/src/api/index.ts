@@ -60,7 +60,7 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
         if (token) headers.set('Authorization', `Bearer ${token}`)
     }
 
-    // Keep the timeout active through body parsing, not just response headers.
+    
     const signal = init.signal
         ? AbortSignal.any([init.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
         : AbortSignal.timeout(REQUEST_TIMEOUT_MS)
@@ -114,7 +114,7 @@ export async function getEvents(limit = 50): Promise<EventsResponse> {
 
 const statusFixtures = { alert: statusAlert, guarding: statusGuarding, disarmed: statusDisarmed }
 
-// Fixture mode: pick the state with ?state=alert|guarding|disarmed (default: alert)
+
 function fixtureStatus(): DeviceStatus {
     const key = new URLSearchParams(window.location.search).get('state') ?? 'alert'
     const fixture = statusFixtures[key as keyof typeof statusFixtures] ?? statusAlert
@@ -133,8 +133,8 @@ export async function getStatus(): Promise<DeviceStatus> {
 /** The latest reading the backend got from the phone (in memory, not history), or null. */
 export async function getLive(): Promise<Reading | null> {
     if (isFixtureMode) {
-        // Alert: the newest sample reading (the phone picked up). Otherwise: the one closest to when it was
-        // armed, so a guarding phone lies where it was put.
+        
+        
         const status = fixtureStatus()
         const armedAt = status.armed_at ? new Date(status.armed_at).getTime() : 0
         const distance = (e: Reading) => Math.abs(new Date(shiftIso(e.timestamp)).getTime() - armedAt)
@@ -152,7 +152,7 @@ export async function getAlerts(limit = 20): Promise<AlertsResponse> {
     return request<AlertsResponse>(`/api/me/alerts?limit=${limit}`)
 }
 
-// Pairing (v3, VITE_PAIRING=true)
+
 
 function requireFixtureToken() {
     if (!hasToken()) throw new UnauthorizedError()

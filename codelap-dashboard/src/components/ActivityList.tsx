@@ -11,7 +11,7 @@ type ActivityListProps = {
 
 type Item = { key: string; at: string; label: string; alert: boolean }
 
-/** What happened, newest first, as a timeline: the alerts and when the current session was armed. */
+
 export default function ActivityList({ status, alerts }: ActivityListProps) {
     const now = useNow()
     if (!alerts) return null
@@ -30,7 +30,7 @@ export default function ActivityList({ status, alerts }: ActivityListProps) {
                 <ol className="relative max-h-80 overflow-auto">
                     {items.map((item, i) => (
                         <li key={item.key} className="relative flex gap-4 pb-5 last:pb-0">
-                            {/* The line joining the events, stopping at the oldest. */}
+                            
                             {i < items.length - 1 && <span className="absolute top-4 left-[5px] h-full w-px bg-line" />}
                             <span className={`mt-1.5 size-[11px] shrink-0 rounded-full ${item.alert ? 'bg-alert' : 'bg-ok'}`} />
                             <div className="flex flex-col">

@@ -21,7 +21,7 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
     const me = usePolling(() => getMe(), POLL_SECONDS, onUnpair)
     const readings = events.data?.events ?? null
 
-    // Poll fast while armed so the alert shows up within ~1 s
+    
     const status = usePolling(
         () => getStatus(),
         (s) => (isArmed(s) ? ACTIVE_POLL_SECONDS : POLL_SECONDS),
@@ -46,10 +46,10 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
     const shownLocation =
         statusData?.state === 'ALERT' && liveLocation
             ? { location: liveLocation, label: 'Where your phone is now', alert: true }
-            // While guarding, and in the first moments of an alert before the phone's first live location arrives.
+            
             : statusData?.state !== 'DISARMED' && armedLocation
                 ? { location: armedLocation, label: 'Where you left your phone', alert: false }
-                // Not guarding: the last place the phone reported, e.g. from the last alert.
+                
                 : statusData?.state === 'DISARMED' && liveLocation
                     ? { location: liveLocation, label: 'Last known location', alert: false }
                     : { location: null, label: 'No location yet', alert: false }

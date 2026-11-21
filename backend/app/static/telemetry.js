@@ -1,8 +1,4 @@
-/** Browser-only demo source. No network requests, persistence, or real location access.
- * Future adapters should implement subscribe(listener), start(), pause(), snapshot().
- * Snapshot: {running, events, elapsedSeconds, timestamp, devices, history}.
- * Device: {id, name, color, latitude, longitude, speedKmh, latencyMs}.
- */
+
 export const UPDATE_INTERVAL_MS = 1000;
 export const HISTORY_LIMIT = 60;
 const ROUTES = [
@@ -47,7 +43,7 @@ export class DemoTelemetrySource {
       device.speedKmh=Math.round(32+i*5+10*Math.sin(this.elapsedSeconds/11+i));
       device.latencyMs=Math.round(28+i*2+6*Math.sin(this.elapsedSeconds/7+i));
       let remaining=device.speedKmh/3.6;
-      // Follow closed, illustrative GPS paths; these are not road-matched routes.
+      
       while (remaining>0) {
         const route=ROUTES[i], target=route[device.target];
         const from=[device.latitude,device.longitude];

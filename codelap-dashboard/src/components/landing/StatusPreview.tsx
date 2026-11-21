@@ -9,7 +9,7 @@ const PREVIEWS: Record<GuardState, { button: string; title: string; description:
 
 const STATES = Object.keys(PREVIEWS) as GuardState[]
 
-/** Presentation only: switches sample states, no API calls or real device controls. */
+
 export default function StatusPreview() {
     const [mode, setMode] = useState<GuardState>('GUARDING')
     const preview = PREVIEWS[mode]

@@ -7,7 +7,7 @@ PICKED_UP_DEG = 15.0
 
 
 def angle_deg(rest: Sequence[float], reading: Sequence[float]) -> float:
-    # Scale first to avoid overflow/underflow for finite but extreme input values.
+    
     rest_scale = max(abs(v) for v in rest)
     reading_scale = max(abs(v) for v in reading)
     if rest_scale == 0 or reading_scale == 0:

@@ -10,7 +10,7 @@ import { PinPad } from './PinPad';
 import { colors, stealth } from './theme';
 import type { AutoSendStats, GuardPhase } from './useGuard';
 
-/** The PIN pad hides again after this long without a key press. */
+
 const PAD_MS = 10_000;
 
 type Props = {
@@ -22,22 +22,22 @@ type Props = {
   settleSecondsLeft: number;
   isStill: boolean;
   alert: Alert | null;
-  /** Stealth: a black screen that looks dead, the same before and after an alert. Off: the GUARDING / MOVED screens (development). */
+  
   stealth: boolean;
   pin: string;
   onCancel: () => void;
-  /** Called after the right PIN: the only way to disarm. */
+  
   onDisarm: () => void;
 };
 
-/** Shown from tapping Arm until disarmed. Mounted only then, so the screen stays awake only while guarding. */
+
 export function GuardScreen(props: Props) {
   useKeepAwake();
   if (props.phase === 'settling' || props.phase === 'arming') return <ArmingDelay {...props} />;
   return props.stealth ? <Stealth {...props} /> : <Guarding {...props} />;
 }
 
-/** The arming delay: put the phone down and let it settle. */
+
 function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, onCancel }: Props) {
   const message =
     phase === 'arming' ? 'Arming…' : settleSecondsLeft > 0 ? `Arming in ${settleSecondsLeft}` : isStill ? 'Arming…' : 'Hold still…';
@@ -61,10 +61,7 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, on
   );
 }
 
-/**
- * Pitch black at minimum brightness from the moment it arms: on AMOLED the pixels are off, so the phone looks dead.
- * Nothing shows whether it's guarding or has raised an alert. A tap shows only the dim PIN pad.
- */
+
 function Stealth({ pin, onDisarm }: Props) {
   const [padUntil, setPadUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -89,7 +86,7 @@ function Stealth({ pin, onDisarm }: Props) {
   );
 }
 
-/** Development screen (stealth off): shows the state; Disarm still needs the PIN. */
+
 function Guarding({ phase, armedAt, stats, magnitude, location, alert, pin, onDisarm }: Props) {
   const elapsed = useElapsed(armedAt);
   const [askPin, setAskPin] = useState(false);
@@ -151,7 +148,7 @@ function formatLocation({ lat, lon, accuracy_m }: GeoPoint): string {
   return accuracy_m === null ? `${lat}, ${lon}` : `${lat}, ${lon} (±${accuracy_m} m)`;
 }
 
-/** Dims the screen while mounted and puts the previous brightness back afterwards (iOS keeps it otherwise). */
+
 function useMinimumBrightness() {
   useEffect(() => {
     let previous: number | null = null;
@@ -161,7 +158,7 @@ function useMinimumBrightness() {
         previous = await Brightness.getBrightnessAsync();
         if (!cancelled) await Brightness.setBrightnessAsync(0);
       } catch {
-        // Not available: the black screen alone still looks dead on AMOLED.
+        
       }
     })();
     return () => {
@@ -171,7 +168,7 @@ function useMinimumBrightness() {
   }, []);
 }
 
-/** "mm:ss" (or "h:mm:ss") since armedAt, updated every second. */
+
 function useElapsed(since: string | null): string {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -196,7 +193,7 @@ const styles = StyleSheet.create({
   settling: { color: colors.accent, fontSize: 36 },
   big: { color: colors.ink, fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
   hint: { color: colors.muted, fontSize: 15, textAlign: 'center' },
-  // Like the dashboard's ALERT banner.
+  
   alertScreen: { backgroundColor: colors.alertSoft },
   alertTitle: { color: colors.alert, fontSize: 56 },
   alertText: { color: colors.alert },

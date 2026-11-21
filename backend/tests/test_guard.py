@@ -169,8 +169,8 @@ def test_new_client_reads_persisted_guard_state(client, auth_headers):
     client.post(f"{BASE}/arm", json=sample("arm_request.json"), headers=auth_headers)
     send(client, auth_headers, (0, 1, 0))
     live_telemetry.clear()
-    # A different client/session must obtain state from the database.
-    # Do not run application lifespan: it uses the production configuration.
+    
+    
     restarted = TestClient(app)
     try:
         assert restarted.get(f"{BASE}/status", headers=auth_headers).json()["state"] == "ALERT"

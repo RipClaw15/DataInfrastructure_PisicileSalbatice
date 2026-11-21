@@ -8,7 +8,7 @@ import PhoneTilt from './PhoneTilt.tsx'
 
 type StatusHeroProps = {
     status: DeviceStatus | null
-    /** Where the phone lay when armed, and the newest position it sent. */
+    
     rest: Axes | null
     current: Axes | null
 }
@@ -19,7 +19,7 @@ const looks: Record<GuardState, string> = {
     ALERT: 'border-alert bg-alert-soft text-alert',
 }
 
-/** The answer to "is my stuff safe?", in plain words, readable from across the room. */
+
 export default function StatusHero({ status, rest, current }: StatusHeroProps) {
     const now = useNow()
     if (!status) return null

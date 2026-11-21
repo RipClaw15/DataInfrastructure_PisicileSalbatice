@@ -11,7 +11,7 @@ type TechnicalDetailsProps = {
     alerts: Alert[]
 }
 
-/** The sensor data (g values, chart, readings), closed by default: for demos and debugging, not for the owner. */
+
 export default function TechnicalDetails({ status, events, armedAt, alerts }: TechnicalDetailsProps) {
     return (
         <details className="group">
