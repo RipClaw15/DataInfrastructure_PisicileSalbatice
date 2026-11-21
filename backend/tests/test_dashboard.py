@@ -53,9 +53,9 @@ def test_assets_cannot_escape_build_directory(client, dashboard_build):
     assert response.status_code == 404
 
 
-def test_api_routes_are_not_shadowed_by_dashboard(client, dashboard_build):
+def test_api_routes_are_not_shadowed_by_dashboard(client, auth_headers, dashboard_build):
     assert client.get("/health").json() == {"status": "ok"}
-    assert client.get("/api/events").json() == {"events": []}
+    assert client.get("/api/me/events", headers=auth_headers).json() == {"events": []}
 
 
 def test_landing_page_links_to_live_dashboard(client):

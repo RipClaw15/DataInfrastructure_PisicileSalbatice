@@ -4,6 +4,14 @@ from datetime import datetime, timezone
 from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, Field, PlainSerializer, field_validator, field_serializer
 
 
+def utc_string(value: datetime) -> str:
+    # SQLite test storage drops timezone metadata; Postgres returns aware values.
+    return value.replace(tzinfo=value.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+UtcTimestamp = Annotated[datetime, PlainSerializer(utc_string, return_type=str, when_used="json")]
+
+
 class RegisterRequest(BaseModel):
     device_id: Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{3,64}$")]
     device_name: Annotated[str, StringConstraints(max_length=64)] | None = None
@@ -12,7 +20,7 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     device_id: str
     device_token: str
-    created_at: AwareDatetime
+    created_at: UtcTimestamp
 
 
 class DeviceResponse(BaseModel):
@@ -20,8 +28,22 @@ class DeviceResponse(BaseModel):
 
     device_id: str
     device_name: str | None
-    created_at: AwareDatetime
-    last_seen: AwareDatetime | None
+    created_at: UtcTimestamp
+    last_seen: UtcTimestamp | None
+
+
+class PairingCodeResponse(BaseModel):
+    code: str
+    expires_at: UtcTimestamp
+
+
+class PairRequest(BaseModel):
+    code: str
+
+
+class PairResponse(BaseModel):
+    device_id: str
+    viewer_token: str
 
 
 DeviceId = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{3,64}$")]
@@ -80,7 +102,7 @@ class EventCreated(BaseModel):
 
     @field_serializer("received_at")
     def serialize_received_at(self, value):
-        return value.replace(tzinfo=value.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        return utc_string(value)
 
 
 class EventResponse(EventRequest):
@@ -90,19 +112,11 @@ class EventResponse(EventRequest):
 
     @field_serializer("timestamp", "received_at")
     def serialize_time(self, value):
-        return value.replace(tzinfo=value.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        return utc_string(value)
 
 
 class EventsResponse(BaseModel):
     events: list[EventResponse]
-
-
-def utc_string(value: datetime) -> str:
-    # SQLite test storage drops timezone metadata; Postgres returns aware values.
-    return value.replace(tzinfo=value.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-UtcTimestamp = Annotated[datetime, PlainSerializer(utc_string, return_type=str, when_used="json")]
 
 
 class AlertResponse(BaseModel):

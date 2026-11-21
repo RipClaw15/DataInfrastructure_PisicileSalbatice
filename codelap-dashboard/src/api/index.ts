@@ -76,8 +76,6 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
     }
 }
 
-// v0 + v1: no token, pairing is off until v3
-
 // The sample readings end at 19:05:14Z but the sample session runs 19:10:00-19:10:30Z, so the
 // armed band and alert marker would fall off the chart. In fixture mode, shift the readings
 // so the newest one lands on the sample status' last_seen.
@@ -96,7 +94,7 @@ export async function getEvents(limit = 50): Promise<EventsResponse> {
             })),
         }
     }
-    return request<EventsResponse>(`/api/events?limit=${limit}`, {}, false)
+    return request<EventsResponse>(`/api/me/events?limit=${limit}`)
 }
 
 const statusFixtures = { alert: statusAlert, guarding: statusGuarding, disarmed: statusDisarmed }
@@ -112,13 +110,13 @@ function fixtureStatus(): DeviceStatus {
     return status
 }
 
-export async function getStatus(deviceId: string): Promise<DeviceStatus> {
+export async function getStatus(): Promise<DeviceStatus> {
     if (isFixtureMode) return fixtureStatus()
-    return request<DeviceStatus>(`/api/devices/${encodeURIComponent(deviceId)}/status`, {}, false)
+    return request<DeviceStatus>('/api/me/status')
 }
 
 /** The latest reading the backend got from the phone (in memory, not history), or null. */
-export async function getLive(deviceId: string): Promise<Reading | null> {
+export async function getLive(): Promise<Reading | null> {
     if (isFixtureMode) {
         // Alert: the newest sample reading (the phone picked up). Otherwise: the one closest to when it was
         // armed, so a guarding phone lies where it was put.
@@ -131,16 +129,12 @@ export async function getLive(deviceId: string): Promise<Reading | null> {
                 : eventsFixture.events.reduce((best, e) => (distance(e) < distance(best) ? e : best))
         return { ...reading, timestamp: shiftIso(reading.timestamp), received_at: shiftIso(reading.received_at) }
     }
-    return request<Reading | null>(`/api/devices/${encodeURIComponent(deviceId)}/live`, {}, false)
+    return request<Reading | null>('/api/me/live')
 }
 
-export async function getAlerts(deviceId: string, limit = 20): Promise<AlertsResponse> {
+export async function getAlerts(limit = 20): Promise<AlertsResponse> {
     if (isFixtureMode) return { ...alertsFixture, alerts: alertsFixture.alerts.slice(0, limit) }
-    return request<AlertsResponse>(
-        `/api/devices/${encodeURIComponent(deviceId)}/alerts?limit=${limit}`,
-        {},
-        false,
-    )
+    return request<AlertsResponse>(`/api/me/alerts?limit=${limit}`)
 }
 
 // Pairing (v3, VITE_PAIRING=true)

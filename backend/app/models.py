@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Index, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -10,16 +10,6 @@ class Device(Base):
     """A guard phone. Dashboard credentials and guard sessions belong separately."""
 
     __tablename__ = "devices"
-    __table_args__ = (
-        CheckConstraint(
-            "device_id ~ '^[a-z0-9-]{3,64}$'",
-            name="ck_devices_device_id_format",
-        ),
-        CheckConstraint(
-            "device_token_hash ~ '^[0-9a-f]{64}$'",
-            name="ck_devices_device_token_hash_format",
-        ),
-    )
 
     # No ID default yet: existing mobile clients already generate phone IDs.
     device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -33,6 +23,30 @@ class Device(Base):
     )
     # Timestamp of the newest sensor reading; None until the first reading.
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ViewerToken(Base):
+    """Read-only dashboard token bound to a single phone."""
+
+    __tablename__ = "viewer_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.device_id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PairingCode(Base):
+    """Short-lived, single-use 6-digit code to pair a dashboard with a phone."""
+
+    __tablename__ = "pairing_codes"
+
+    code: Mapped[str] = mapped_column(String(6), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.device_id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Event(Base):

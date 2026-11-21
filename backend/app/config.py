@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     alert_gps_interval_seconds: float = Field(default=30, gt=0)
     alert_gps_distance_meters: float = Field(default=25, gt=0)
+    pairing_code_ttl_minutes: int = 10
+    pair_rate_limit_max_failures: int = 5
+    pair_rate_limit_window_seconds: int = 60
 
 
 settings = Settings()

@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { API_URL, buildPayload, isMockMode, sendEvent, type EventPayload } from './src/api';
+import {
+  API_URL,
+  buildPayload,
+  ensureRegistered,
+  isMockMode,
+  requestPairingCode,
+  sendEvent,
+  type EventPayload,
+  type PairingCodeResponse,
+} from './src/api';
 import { getDeviceId } from './src/deviceId';
 import { GuardScreen } from './src/GuardScreen';
 import { useLocation, type LocationState } from './src/location';
@@ -22,6 +31,12 @@ type SendStatus =
 /** Setting the PIN: enter it, then enter it again. `thenArm` when it was started by tapping Arm. */
 type PinSetup = { step: 'enter' | 'confirm'; first?: string; mismatch?: boolean; thenArm: boolean };
 
+type PairingState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; data: PairingCodeResponse }
+  | { kind: 'failed'; reason: string };
+
 export default function App() {
   const sensor = useAccelerometer();
   const gps = useLocation();
@@ -30,12 +45,25 @@ export default function App() {
   const [pinSetup, setPinSetup] = useState<PinSetup | null>(null);
   const [stealth, setStealth] = useState(true);
   const [sendStatus, setSendStatus] = useState<SendStatus>({ kind: 'idle' });
+  const [pairing, setPairing] = useState<PairingState>({ kind: 'idle' });
   const [lastPayload, setLastPayload] = useState<EventPayload | null>(null);
   const [simulateError, setSimulateError] = useState(false);
 
   useEffect(() => {
-    getDeviceId().then(setDeviceId);
-    getPin().then(setPin);
+    let active = true;
+    getDeviceId().then((id) => {
+      if (active) setDeviceId(id);
+    });
+    getPin().then((saved) => {
+      if (active) setPin(saved);
+    });
+    // Silently register this phone on first launch so it receives a device_token.
+    ensureRegistered().then((res) => {
+      if (active && res.ok) setDeviceId(res.data.deviceId);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const reading = sensor.status === 'ready' ? sensor.reading : null;
@@ -80,6 +108,16 @@ export default function App() {
     setPin(entered);
     setPinSetup(null);
     if (pinSetup.thenArm) guard.arm();
+  }
+
+  async function onShowPairingCode() {
+    setPairing({ kind: 'loading' });
+    const result = await requestPairingCode({ retry: false });
+    if (result.ok) {
+      setPairing({ kind: 'ready', data: result.data });
+    } else {
+      setPairing({ kind: 'failed', reason: result.reason });
+    }
   }
 
   if (guard.phase !== 'disarmed' && pin) {
@@ -155,6 +193,46 @@ export default function App() {
             <Text style={styles.linkText}>Change PIN</Text>
           </Pressable>
         )}
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Dashboard pairing</Text>
+          {pairing.kind === 'ready' ? (
+            <>
+              <Text style={styles.pairingCode}>
+                {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
+              </Text>
+              <Text style={styles.small}>
+                Enter this 6-digit code in the web dashboard. Single-use, valid for 10 min.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.small}>
+              Generate a one-time 6-digit code to view this phone’s alerts on the web dashboard.
+            </Text>
+          )}
+          {pairing.kind === 'failed' && (
+            <Text style={[styles.small, styles.statusFailed]}>Failed: {pairing.reason}</Text>
+          )}
+          <Pressable
+            onPress={onShowPairingCode}
+            disabled={pairing.kind === 'loading' || deviceId === null}
+            style={({ pressed }) => [
+              styles.button,
+              styles.secondaryButton,
+              styles.pairButton,
+              (pairing.kind === 'loading' || deviceId === null) && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.secondaryText}>
+              {pairing.kind === 'loading'
+                ? 'Generating code…'
+                : pairing.kind === 'ready'
+                  ? 'Generate new code'
+                  : 'Show dashboard code'}
+            </Text>
+          </Pressable>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Accelerometer</Text>
@@ -288,6 +366,16 @@ const styles = StyleSheet.create({
   sessionText: { fontSize: 17, fontWeight: '600', color: colors.ink },
   label: { fontSize: 13, fontWeight: '600', color: colors.muted, textTransform: 'uppercase' },
   small: { fontSize: 13, color: colors.muted },
+  pairingCode: {
+    fontSize: 40,
+    fontWeight: '700',
+    letterSpacing: 6,
+    textAlign: 'center',
+    color: colors.accent,
+    marginVertical: 6,
+    fontVariant: ['tabular-nums'],
+  },
+  pairButton: { marginTop: 6 },
   axes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   axis: { alignItems: 'center', flex: 1 },
   axisValue: { fontSize: 22, fontVariant: ['tabular-nums'], fontWeight: '600', color: colors.ink },

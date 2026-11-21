@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
@@ -8,12 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Device
+from .models import Device, ViewerToken
 
 
 device_bearer = HTTPBearer(
-    scheme_name="DeviceToken",
-    description="Device token returned once by POST /api/register.",
+    scheme_name="BearerToken",
+    description="Device token (phone) or viewer token (dashboard).",
     auto_error=False,
 )
 
@@ -23,6 +24,13 @@ def invalid_token() -> HTTPException:
         status_code=401,
         detail="Invalid or missing token",
         headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def forbidden() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail="Not allowed",
     )
 
 
@@ -48,8 +56,31 @@ def current_device(
     token: Annotated[str, Depends(require_device_token)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Device:
-    # Identify the phone from its credential, never a caller-supplied device ID.
-    device = db.scalar(select(Device).where(Device.device_token_hash == hash_token(token)))
-    if device is None:
-        raise invalid_token()
-    return device
+    """Device-token-only dependency for write routes. Viewer tokens get 403."""
+    digest = hash_token(token)
+    device = db.scalar(select(Device).where(Device.device_token_hash == digest))
+    if device is not None:
+        return device
+    viewer = db.get(ViewerToken, digest)
+    if viewer is not None:
+        raise forbidden()
+    raise invalid_token()
+
+
+def current_phone_any_token(
+    token: Annotated[str, Depends(require_device_token)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Device:
+    """Accept either a device token or a read-only viewer token for GET routes."""
+    digest = hash_token(token)
+    device = db.scalar(select(Device).where(Device.device_token_hash == digest))
+    if device is not None:
+        return device
+    viewer = db.get(ViewerToken, digest)
+    if viewer is not None:
+        device = db.get(Device, viewer.device_id)
+        if device is not None:
+            viewer.last_used_at = datetime.now(timezone.utc)
+            db.commit()
+            return device
+    raise invalid_token()

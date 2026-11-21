@@ -19,26 +19,22 @@ const isArmed = (s: DeviceStatus | null) => s !== null && s.state !== 'DISARMED'
 export default function Dashboard({ onUnpair }: DashboardProps) {
     const events = usePolling(() => getEvents(50), POLL_SECONDS, onUnpair)
     const readings = events.data?.events ?? null
-    const deviceId = readings?.[0]?.device_id ?? null
-    const hasDevice = deviceId !== null
 
     // Poll fast while armed so the alert shows up within ~1 s
     const status = usePolling(
-        () => getStatus(deviceId!), // only runs when hasDevice
+        () => getStatus(),
         (s) => (isArmed(s) ? ACTIVE_POLL_SECONDS : POLL_SECONDS),
         onUnpair,
-        hasDevice,
     )
     const armed = isArmed(status.data)
     const alerts = usePolling(
-        () => getAlerts(deviceId!),
+        () => getAlerts(),
         armed ? ACTIVE_POLL_SECONDS : POLL_SECONDS,
         onUnpair,
-        hasDevice,
     )
 
     // The phone's newest reading, for the 3D phone; only while armed, when the phone is sending.
-    const live = usePolling(() => getLive(deviceId!), ACTIVE_POLL_SECONDS, onUnpair, hasDevice && armed)
+    const live = usePolling(() => getLive(), ACTIVE_POLL_SECONDS, onUnpair, armed)
     const rest = restingAxes(status.data, readings)
     const current = armed ? live.data?.axes ?? status.data?.last_alert?.axes ?? null : null
 

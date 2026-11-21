@@ -11,30 +11,40 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import settings
-from .db import get_engine
-from .routes.register import router as register_router
-from .routes.me import router as me_router
-from .routes.events import router as events_router
-from .routes.guard import router as guard_router
-from .db import Base
-from .models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
+from .db import Base, get_engine
 from .live import live_telemetry
 from .observability import record, request_id
+from .routes.register import router as register_router
+from .routes.me import router as me_router
+from .routes.pairing import router as pairing_router
+from .routes.events import router as events_router
+from .routes.guard import router as guard_router
+from .models import (  # noqa: F401 - register all ORM models on Base.metadata
+    Alert,
+    ArmSession,
+    Device,
+    Event,
+    EventLocation,
+    EventSnapshot,
+    PairingCode,
+    SessionLocation,
+    ViewerToken,
+)
+
 
 @asynccontextmanager
 async def lifespan(app):
     if settings.database_url:
-        Base.metadata.create_all(
-            get_engine(), tables=[Event.__table__, ArmSession.__table__, Alert.__table__,
-                                 EventLocation.__table__, SessionLocation.__table__, EventSnapshot.__table__],
-        )
+        Base.metadata.create_all(get_engine())
     try:
         yield
     finally:
         live_telemetry.clear()
 
 
-app = FastAPI(title="StayPut API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="StayPut API", version="0.2.0", lifespan=lifespan)
+
+
 @app.middleware("http")
 async def request_timing(request, call_next):
     # Generate IDs ourselves: never log untrusted header content.
@@ -66,6 +76,7 @@ app.add_middleware(
 )
 app.include_router(register_router)
 app.include_router(me_router)
+app.include_router(pairing_router)
 app.include_router(events_router)
 app.include_router(guard_router)
 

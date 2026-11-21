@@ -8,9 +8,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from backend.app.db import Base, get_db
-from backend.app.main import app
-from backend.app.models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
 from backend.app.live import live_telemetry
+from backend.app.main import app
+from backend.app.models import (  # noqa: F401
+    Alert,
+    ArmSession,
+    Device,
+    Event,
+    EventLocation,
+    EventSnapshot,
+    PairingCode,
+    SessionLocation,
+    ViewerToken,
+)
+from backend.app.rate_limit import pair_rate_limiter
 
 SAMPLES = Path(__file__).resolve().parents[2] / "contracts/backend"
 
@@ -18,8 +29,7 @@ SAMPLES = Path(__file__).resolve().parents[2] / "contracts/backend"
 @pytest.fixture
 def engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine, tables=[Event.__table__, ArmSession.__table__, Alert.__table__,
-                                            EventLocation.__table__, SessionLocation.__table__, EventSnapshot.__table__])
+    Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
 
@@ -27,6 +37,8 @@ def engine():
 @pytest.fixture
 def client(engine):
     live_telemetry.clear()
+    pair_rate_limiter.reset()
+
     def database():
         with Session(engine) as session:
             yield session
@@ -42,6 +54,16 @@ def client(engine):
         live_telemetry.clear()
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous)
+        pair_rate_limiter.reset()
+
+
+@pytest.fixture
+def auth_headers(client):
+    """Register demo-phone-01 and return its Bearer Authorization header dict."""
+    res = client.post("/api/register", json={"device_id": "demo-phone-01", "device_name": "Demo Phone"})
+    assert res.status_code == 201, res.text
+    token = res.json()["device_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture

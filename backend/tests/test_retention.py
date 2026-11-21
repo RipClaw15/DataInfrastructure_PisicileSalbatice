@@ -9,7 +9,7 @@ from backend.app.live import LiveTelemetry, live_telemetry
 from backend.app.models import Alert, ArmSession, Event, EventLocation, EventSnapshot
 from backend.app.schemas import EventResponse
 
-BASE = "/api/devices/demo-phone-01"
+BASE = "/api/me"
 REST = {"x": 0, "y": 0, "z": -1}
 MOVED = {"x": 0, "y": 1, "z": 0}
 FIX = {"lat": 46.77, "lon": 23.59, "accuracy_m": 5}
@@ -20,51 +20,51 @@ def count(engine, model):
         return db.scalar(select(func.count()).select_from(model))
 
 
-def arm(client):
+def arm(client, headers):
     assert client.post(f"{BASE}/arm", json={
         "timestamp": "2026-11-21T11:00:00Z", "axes": REST,
-    }).status_code == 200
+    }, headers=headers).status_code == 200
 
 
-def test_routine_samples_never_create_history(client, engine, payload):
+def test_routine_samples_never_create_history(client, auth_headers, engine, payload):
     for _ in range(10):
-        response = client.post("/api/events", json=payload)
+        response = client.post("/api/me/events", json=payload, headers=auth_headers)
         assert response.status_code == 201
         assert response.json()["stored"] is False
         assert response.json()["id"] == 0
     assert count(engine, Event) == 0
     assert count(engine, EventLocation) == 0
     assert count(engine, EventSnapshot) == 0
-    assert client.get(f"{BASE}/status").json()["online"] is True
-    assert client.get(f"{BASE}/live").json()["axes"] == payload["axes"]
+    assert client.get(f"{BASE}/status", headers=auth_headers).json()["online"] is True
+    assert client.get(f"{BASE}/live", headers=auth_headers).json()["axes"] == payload["axes"]
 
 
-def test_only_transitions_are_retained_without_gps(client, engine, payload):
-    arm(client)
+def test_only_transitions_are_retained_without_gps(client, auth_headers, engine, payload):
+    arm(client, auth_headers)
     payload.update(axes=REST, timestamp="2026-11-21T11:00:01Z")
     for _ in range(100):
-        assert client.post("/api/events", json=payload).json()["stored"] is False
+        assert client.post("/api/me/events", json=payload, headers=auth_headers).json()["stored"] is False
     assert count(engine, Event) == 1
     payload.update(axes=MOVED, timestamp="2026-11-21T11:00:02Z")
-    triggered = client.post("/api/events", json=payload).json()
+    triggered = client.post("/api/me/events", json=payload, headers=auth_headers).json()
     assert triggered["stored"] is True
     assert triggered["id"] > 0
     for _ in range(100):
-        assert client.post("/api/events", json=payload).json()["stored"] is False
+        assert client.post("/api/me/events", json=payload, headers=auth_headers).json()["stored"] is False
     assert count(engine, Event) == 2
     assert count(engine, Alert) == 1
-    assert client.post(f"{BASE}/disarm").json()["state"] == "DISARMED"
+    assert client.post(f"{BASE}/disarm", headers=auth_headers).json()["state"] == "DISARMED"
     assert count(engine, Event) == 3
-    client.post(f"{BASE}/disarm")
+    client.post(f"{BASE}/disarm", headers=auth_headers)
     assert count(engine, Event) == 3
     with Session(engine) as db:
         reasons = db.scalars(select(EventSnapshot.reason).order_by(EventSnapshot.event_id)).all()
         assert reasons == ["armed", "picked_up", "disarmed"]
 
 
-def test_rearm_records_both_session_boundaries(client, engine):
-    arm(client)
-    arm(client)
+def test_rearm_records_both_session_boundaries(client, auth_headers, engine):
+    arm(client, auth_headers)
+    arm(client, auth_headers)
     assert count(engine, ArmSession) == 2
     with Session(engine) as db:
         reasons = db.scalars(select(EventSnapshot.reason).order_by(EventSnapshot.event_id)).all()
@@ -79,31 +79,31 @@ def clock(monkeypatch):
     return current
 
 
-def gps_send(client, payload, clock, location, axes=MOVED, timestamp=None):
+def gps_send(client, headers, payload, clock, location, axes=MOVED, timestamp=None):
     body = {**payload, "axes": axes, "timestamp": timestamp or clock[0].isoformat()}
     if location is not None:
         body["location"] = location
-    response = client.post("/api/events", json=body)
+    response = client.post("/api/me/events", json=body, headers=headers)
     assert response.status_code == 201
     return response.json()
 
 
-def test_gps_trail_requires_elapsed_time_and_distance(client, engine, payload, clock):
-    arm(client)
-    assert gps_send(client, payload, clock, FIX)["stored"] is True  # alert
+def test_gps_trail_requires_elapsed_time_and_distance(client, auth_headers, engine, payload, clock):
+    arm(client, auth_headers)
+    assert gps_send(client, auth_headers, payload, clock, FIX)["stored"] is True  # alert
     clock[0] += timedelta(seconds=1)
     far = {**FIX, "lat": 46.78}
-    assert gps_send(client, payload, clock, far)["stored"] is False
-    assert client.get(f"{BASE}/status").json()["last_location"] == far  # live, unsaved
+    assert gps_send(client, auth_headers, payload, clock, far)["stored"] is False
+    assert client.get(f"{BASE}/status", headers=auth_headers).json()["last_location"] == far  # live, unsaved
     clock[0] += timedelta(seconds=29)
-    assert gps_send(client, payload, clock, far)["stored"] is True
+    assert gps_send(client, auth_headers, payload, clock, far)["stored"] is True
     assert count(engine, Event) == 3  # arm, alert, one GPS update
     clock[0] += timedelta(seconds=31)
-    assert gps_send(client, payload, clock, far)["stored"] is False  # stationary
+    assert gps_send(client, auth_headers, payload, clock, far)["stored"] is False  # stationary
     noisy = {**far, "lat": 46.78001}
-    assert gps_send(client, payload, clock, noisy)["stored"] is False
+    assert gps_send(client, auth_headers, payload, clock, noisy)["stored"] is False
     inaccurate = {**far, "lat": 46.781, "accuracy_m": 500}
-    assert gps_send(client, payload, clock, inaccurate)["stored"] is False
+    assert gps_send(client, auth_headers, payload, clock, inaccurate)["stored"] is False
     assert count(engine, Event) == 3
     with Session(engine) as db:
         assert db.scalars(select(EventSnapshot.reason).order_by(EventSnapshot.event_id)).all() == [
@@ -111,50 +111,50 @@ def test_gps_trail_requires_elapsed_time_and_distance(client, engine, payload, c
         ]
 
 
-def test_first_post_alert_fix_is_saved_and_old_fixes_are_skipped(client, engine, payload, clock):
-    arm(client)
-    assert gps_send(client, payload, clock, None)["stored"] is True
+def test_first_post_alert_fix_is_saved_and_old_fixes_are_skipped(client, auth_headers, engine, payload, clock):
+    arm(client, auth_headers)
+    assert gps_send(client, auth_headers, payload, clock, None)["stored"] is True
     clock[0] += timedelta(seconds=1)
-    assert gps_send(client, payload, clock, FIX)["stored"] is True
+    assert gps_send(client, auth_headers, payload, clock, FIX)["stored"] is True
     clock[0] += timedelta(seconds=40)
     older = {**FIX, "lat": 46.80}
-    assert gps_send(client, payload, clock, older, timestamp="2026-11-21T10:59:00Z")["stored"] is False
+    assert gps_send(client, auth_headers, payload, clock, older, timestamp="2026-11-21T10:59:00Z")["stored"] is False
     assert count(engine, Event) == 3
 
 
-def test_no_gps_history_while_guarding(client, engine, payload, clock):
-    arm(client)
+def test_no_gps_history_while_guarding(client, auth_headers, engine, payload, clock):
+    arm(client, auth_headers)
     for index in range(10):
         clock[0] += timedelta(seconds=40)
-        assert gps_send(client, payload, clock, {**FIX, "lat": 46.77 + index / 100}, axes=REST)["stored"] is False
+        assert gps_send(client, auth_headers, payload, clock, {**FIX, "lat": 46.77 + index / 100}, axes=REST)["stored"] is False
     assert count(engine, Event) == 1
     assert count(engine, EventLocation) == 0
 
 
-def test_gps_limits_reset_for_a_new_session(client, engine, payload, clock):
-    arm(client)
-    assert gps_send(client, payload, clock, FIX)["stored"] is True
-    arm(client)
+def test_gps_limits_reset_for_a_new_session(client, auth_headers, engine, payload, clock):
+    arm(client, auth_headers)
+    assert gps_send(client, auth_headers, payload, clock, FIX)["stored"] is True
+    arm(client, auth_headers)
     clock[0] += timedelta(seconds=1)
-    assert gps_send(client, payload, clock, FIX)["stored"] is True
+    assert gps_send(client, auth_headers, payload, clock, FIX)["stored"] is True
     assert count(engine, Alert) == 2
 
 
-def test_live_cache_can_clear_without_losing_saved_history(client, engine, payload):
-    arm(client)
+def test_live_cache_can_clear_without_losing_saved_history(client, auth_headers, engine, payload):
+    arm(client, auth_headers)
     payload.update(axes=MOVED, timestamp="2026-11-21T11:00:02Z", location=FIX)
-    assert client.post("/api/events", json=payload).json()["stored"] is True
-    saved = client.get("/api/events").json()
+    assert client.post("/api/me/events", json=payload, headers=auth_headers).json()["stored"] is True
+    saved = client.get("/api/me/events", headers=auth_headers).json()
     live_telemetry.clear()
-    assert client.get(f"{BASE}/live").json() is None
-    assert client.get(f"{BASE}/status").json()["state"] == "ALERT"
-    assert client.get(f"{BASE}/status").json()["last_location"] == FIX
-    assert client.get("/api/events").json() == saved
+    assert client.get(f"{BASE}/live", headers=auth_headers).json() is None
+    assert client.get(f"{BASE}/status", headers=auth_headers).json()["state"] == "ALERT"
+    assert client.get(f"{BASE}/status", headers=auth_headers).json()["last_location"] == FIX
+    assert client.get("/api/me/events", headers=auth_headers).json() == saved
     assert count(engine, Event) == 2
 
 
-def test_failed_transaction_does_not_publish_live_data(client, engine, payload, monkeypatch):
-    arm(client)
+def test_failed_transaction_does_not_publish_live_data(client, auth_headers, engine, payload, monkeypatch):
+    arm(client, auth_headers)
     payload["axes"] = MOVED
 
     def fail_commit(self):
@@ -163,7 +163,7 @@ def test_failed_transaction_does_not_publish_live_data(client, engine, payload, 
     with monkeypatch.context() as context:
         context.setattr(Session, "commit", fail_commit)
         with pytest.raises(RuntimeError, match="simulated database failure"):
-            client.post("/api/events", json=payload)
+            client.post("/api/me/events", json=payload, headers=auth_headers)
     assert live_telemetry.get(payload["device_id"]) is None
     assert count(engine, Alert) == 0
     assert count(engine, Event) == 1
