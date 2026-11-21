@@ -7,9 +7,9 @@ import { utcNow, type Reading } from './sensor';
 
 /**
  * While armed the phone sends only what's worth storing:
- * - a reading as soon as it turns more than MOVE_SEND_DEG from the last one sent (at most one per second),
+ * - a reading as soon as it turns more than MOVE_SEND_DEG from the last one sent (at most one per second; after an alert too),
  * - a heartbeat every HEARTBEAT_MS, so the server can tell "lying still" from "gone silent",
- * - in ALERT, a reading whenever the location changes (the phone reports a new position every 10 m).
+ * - in ALERT, the live location with every reading, and a reading whenever the location changes (every 10 m).
  * Measured: on a table the direction wobbles 0.1-0.65 deg; picking the phone up turns it 25 deg or more.
  */
 const MOVE_SEND_DEG = 2;
@@ -127,12 +127,13 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     }
   }
 
-  // Armed, not yet alerted: send as soon as the phone turns away from the last reading sent.
+  // Armed: send as soon as the phone turns away from the last reading sent. This goes on after an alert too, so the
+  // dashboard's 3D phone follows it; the backend doesn't store these. Before an alert, check the state right after.
   useEffect(() => {
     const last = lastSentRef.current;
-    if (phase !== 'armed' || alert || !reading || !last) return;
+    if (phase !== 'armed' || !reading || !last) return;
     if (Date.now() - last.at >= MIN_SEND_GAP_MS && angleDeg(reading, last.axes) > MOVE_SEND_DEG) {
-      void sendReading(true);
+      void sendReading(!alert);
     }
   }, [phase, alert, reading]);
 
