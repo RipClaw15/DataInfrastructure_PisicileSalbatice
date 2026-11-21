@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PIN_LENGTH } from './pin';
+import { fonts } from './theme';
 
 type Props = {
   /** Called with the full PIN; the pad clears itself either way. */
@@ -66,5 +67,5 @@ const styles = StyleSheet.create({
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5 },
   keys: { flexDirection: 'row', flexWrap: 'wrap', width: 264, justifyContent: 'center' },
   key: { width: 88, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36 },
-  keyText: { fontSize: 30, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  keyText: { fontFamily: fonts.regular, fontSize: 30, fontVariant: ['tabular-nums'] },
 });

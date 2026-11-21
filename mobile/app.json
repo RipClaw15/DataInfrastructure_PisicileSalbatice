@@ -27,7 +27,8 @@
         {
           "locationWhenInUsePermission": "The location is saved when you arm, and sent after an alert so you can see where the phone goes."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

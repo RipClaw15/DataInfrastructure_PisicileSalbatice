@@ -57,7 +57,7 @@ On iPhone, allow **Local Network** access for Expo Go when asked.
 
 You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
 
-- **Send reading:** sends one reading. The app shows `Sent ✓ id …` and the dummy server prints it.
+- **Send reading** (under **Developer**, with the raw sensor values): sends one reading. The app shows `Sent ✓ id …` and the dummy server prints it.
 - **Arm:** the first time, set a 4-digit **PIN**: it's the only way to disarm. Then put the phone down (face down works).
   It shows **PUT IT DOWN** and arms only once it has been lying still for 2 seconds (at least 5 seconds after the tap),
   so the resting position is where it lies, not where you held it.
@@ -91,11 +91,11 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 ## Files
 | Path | What |
 |---|---|
-| `App.tsx` | Main screen: Arm, Stealth switch, PIN setup, live readings, Send button, last payload |
+| `App.tsx` | Main screen: what sets off the alarm, Arm, dashboard code, settings (name, PIN, Stealth, Delete my data), Developer section |
 | `src/GuardScreen.tsx` | Shown while armed: PUT IT DOWN, then the black stealth screen (or GUARDING / MOVED with Stealth off); keeps the screen awake |
 | `src/PinPad.tsx`, `src/pin.ts` | The PIN pad, and the PIN saved on the phone |
 | `src/useGuard.ts` | Arm/disarm and what gets sent while armed (on movement, heartbeat, location after an alert) |
-| `src/theme.ts` | Colours: the StayPut palette, the same tokens as the dashboard (`codelap-dashboard/src/index.css`) |
+| `src/theme.ts` | Colours and typeface: the same as the dashboard (`codelap-dashboard/src/index.css`) |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
 | `src/location.ts` | GPS hook (`expo-location`, while the app is open); sent with Arm, with Send reading, and with every reading after an alert |
 | `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |

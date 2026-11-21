@@ -341,6 +341,55 @@ export async function updateDeviceName(name: string): Promise<ApiResult<{ device
   }
 }
 
+/**
+ * GET /api/me: how many dashboards follow this phone. Arming needs at least one (the server refuses otherwise),
+ * because the dashboard is where the alarm shows up. Mock mode counts as paired.
+ */
+export async function getPairedDashboards(): Promise<ApiResult<number>> {
+  if (isMockMode) return { ok: true, data: 1 };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const token = await getOrRegisterToken();
+    const res = await fetch(`${API_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+    if (res.status !== 200) return { ok: false, reason: `check failed (${res.status})` };
+    const data = (await res.json()) as { paired_dashboards?: number };
+    return { ok: true, data: data.paired_dashboards ?? 0 };
+  } catch {
+    return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * DELETE /api/me: deletes this phone and everything the backend stored about it (readings, locations, alerts,
+ * paired dashboards). Then the app forgets its ID and token, so it starts over as a new phone.
+ * A 401 means the backend no longer knows this phone, so there's nothing left to delete there.
+ */
+export async function deleteMyData(): Promise<ApiResult<null>> {
+  if (!isMockMode) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const token = await getOrRegisterToken();
+      const res = await fetch(`${API_URL}/api/me`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      if (res.status !== 204 && res.status !== 401) return { ok: false, reason: `could not delete (${res.status})` };
+    } catch {
+      return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  cachedToken = null;
+  await regenerateDeviceId();
+  return { ok: true, data: null };
+}
+
 function mockStatus(deviceId: string, state: DeviceStatus['state'], armedAt: string | null): DeviceStatus {
   return { device_id: deviceId, state, armed_at: armedAt, last_seen: utcNow(), online: true, last_alert: null };
 }

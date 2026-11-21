@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alert } from './api';
 import type { GeoPoint } from './location';
 import { PinPad } from './PinPad';
-import { colors, stealth } from './theme';
+import { colors, fonts, stealth } from './theme';
 import type { AutoSendStats, GuardPhase } from './useGuard';
 
 /** The PIN pad hides again after this long without a key press. */
@@ -190,22 +190,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page, padding: 24, paddingTop: 72, paddingBottom: 48 },
   stealth: { flex: 1, backgroundColor: stealth.black, alignItems: 'center', justifyContent: 'center', gap: 36 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { color: colors.ok, fontSize: 44, fontWeight: '800', letterSpacing: 4 },
+  title: { fontFamily: fonts.bold, color: colors.ok, fontSize: 44, letterSpacing: 2 },
   settling: { color: colors.accent, fontSize: 36 },
-  big: { color: colors.ink, fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
-  hint: { color: colors.muted, fontSize: 15, textAlign: 'center' },
+  big: { fontFamily: fonts.regular, color: colors.ink, fontSize: 56, fontVariant: ['tabular-nums'] },
+  hint: { fontFamily: fonts.regular, color: colors.muted, fontSize: 16, textAlign: 'center' },
   alertScreen: { backgroundColor: colors.alertSoft },
   alertTitle: { color: colors.alert, fontSize: 56 },
   alertText: { color: colors.alert },
-  alertLocation: { color: colors.ink, fontSize: 17, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
+  alertLocation: { fontFamily: fonts.bold, color: colors.ink, fontSize: 17, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stats: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   stat: { alignItems: 'center', flex: 1 },
-  statValue: { color: colors.ink, fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  statValue: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 20, fontVariant: ['tabular-nums'] },
+  statLabel: { fontFamily: fonts.regular, color: colors.muted, fontSize: 13, marginTop: 2 },
   warn: { color: colors.warn },
-  error: { color: colors.warn, fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  error: { fontFamily: fonts.regular, color: colors.warn, fontSize: 14, textAlign: 'center', marginBottom: 12 },
   button: { borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
   secondaryButton: { borderWidth: 1, borderColor: colors.line },
-  secondaryText: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  secondaryText: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 18 },
   buttonPressed: { opacity: 0.6 },
 });
