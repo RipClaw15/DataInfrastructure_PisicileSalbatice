@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from datetime import datetime, timezone
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, Field, field_validator, field_serializer
+from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, Field, PlainSerializer, field_validator, field_serializer
 
 
 class RegisterRequest(BaseModel):
@@ -34,11 +34,7 @@ class Axes(BaseModel):
     z: Number
 
 
-class EventRequest(BaseModel):
-    device_id: DeviceId
-    event_type: Literal["accelerometer"]
-    value: Annotated[Number, Field(ge=0)]
-    unit: Literal["g"]
+class ArmRequest(BaseModel):
     timestamp: AwareDatetime
     axes: Axes
 
@@ -47,12 +43,25 @@ class EventRequest(BaseModel):
     def require_iso_timestamp(cls, value):
         if not isinstance(value, (str, datetime)):
             raise ValueError("timestamp must be an ISO 8601 string with timezone")
+        if isinstance(value, str):
+            # Pydantic also accepts epoch strings; the API contract requires ISO.
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                raise ValueError("timestamp must be an ISO 8601 string with timezone") from None
         return value
 
     @field_validator("timestamp")
     @classmethod
     def normalize_timestamp(cls, value):
         return value.astimezone(timezone.utc)
+
+
+class EventRequest(ArmRequest):
+    device_id: DeviceId
+    event_type: Literal["accelerometer"]
+    value: Annotated[Number, Field(ge=0)]
+    unit: Literal["g"]
 
 
 class EventCreated(BaseModel):
@@ -76,3 +85,36 @@ class EventResponse(EventRequest):
 
 class EventsResponse(BaseModel):
     events: list[EventResponse]
+
+
+def utc_string(value: datetime) -> str:
+    # SQLite test storage drops timezone metadata; Postgres returns aware values.
+    return value.replace(tzinfo=value.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+UtcTimestamp = Annotated[datetime, PlainSerializer(utc_string, return_type=str, when_used="json")]
+
+
+class AlertResponse(BaseModel):
+    id: int
+    device_id: str
+    type: Literal["picked_up"]
+    timestamp: UtcTimestamp
+    angle_deg: float
+    value: float
+    unit: Literal["g"] = "g"
+    axes: Axes
+
+
+class GuardStatus(BaseModel):
+    device_id: str
+    state: Literal["DISARMED", "GUARDING", "ALERT"]
+    armed_at: UtcTimestamp | None
+    last_seen: UtcTimestamp | None
+    online: bool
+    last_alert: AlertResponse | None
+
+
+class AlertsResponse(BaseModel):
+    device_id: str
+    alerts: list[AlertResponse]

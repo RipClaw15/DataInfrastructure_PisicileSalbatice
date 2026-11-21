@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..guard import detect_reading, lock_device
 from ..models import Event
 from ..schemas import EventCreated, EventRequest, EventResponse, EventsResponse
 
@@ -15,12 +16,14 @@ Database = Annotated[Session, Depends(get_db)]
 
 @router.post("", status_code=201, response_model=EventCreated)
 def post_event(payload: EventRequest, db: Database):
+    lock_device(db, payload.device_id)
     event = Event(
         **payload.model_dump(exclude={"axes"}),
         **payload.axes.model_dump(),
         received_at=datetime.now(timezone.utc),
     )
     db.add(event)
+    detect_reading(db, event)
     db.commit()
     db.refresh(event)
     return EventCreated(id=event.id, device_id=event.device_id, received_at=event.received_at)

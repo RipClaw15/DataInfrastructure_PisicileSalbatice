@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, String, Index, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Index, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -52,3 +52,42 @@ class Event(Base):
 
 Index("ix_events_device_timestamp", Event.device_id, Event.timestamp.desc())
 Index("ix_events_timestamp", Event.timestamp.desc())
+
+
+class ArmSession(Base):
+    __tablename__ = "arm_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    rest_x: Mapped[float]
+    rest_y: Mapped[float]
+    rest_z: Mapped[float]
+    armed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    disarmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# A phone can have many historical sessions, but only one open session.
+Index(
+    "uq_arm_sessions_open_device", ArmSession.device_id, unique=True,
+    postgresql_where=ArmSession.disarmed_at.is_(None),
+    sqlite_where=ArmSession.disarmed_at.is_(None),
+)
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(64))
+    # Database constraint also enforces one alert per session.
+    session_id: Mapped[int] = mapped_column(ForeignKey("arm_sessions.id"), unique=True)
+    type: Mapped[str] = mapped_column(String(32), default="picked_up")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    angle_deg: Mapped[float]
+    value: Mapped[float]
+    x: Mapped[float]
+    y: Mapped[float]
+    z: Mapped[float]
+
+
+Index("ix_alerts_device_timestamp", Alert.device_id, Alert.timestamp.desc())

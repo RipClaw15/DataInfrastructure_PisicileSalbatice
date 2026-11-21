@@ -2,39 +2,8 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
-
-from backend.app.db import get_db
-from backend.app.main import app
-from backend.app.models import Event
 
 SAMPLES = Path(__file__).resolve().parents[2] / "contracts/backend"
-
-
-@pytest.fixture
-def client():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Event.__table__.create(engine)
-
-    def database():
-        with Session(engine) as session:
-            yield session
-
-    app.dependency_overrides[get_db] = database
-    # No lifespan: tests create their own table and never touch the configured DB.
-    client = TestClient(app)
-    yield client
-    client.close()
-    app.dependency_overrides.clear()
-    engine.dispose()
-
-
-@pytest.fixture
-def payload():
-    return json.loads((SAMPLES / "post_event_request.json").read_text())
 
 
 def test_round_trip(client, payload):

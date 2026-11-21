@@ -13,12 +13,16 @@ from .db import get_engine
 from .routes.register import router as register_router
 from .routes.me import router as me_router
 from .routes.events import router as events_router
-from .models import Event
+from .routes.guard import router as guard_router
+from .db import Base
+from .models import Alert, ArmSession, Event
 
 @asynccontextmanager
 async def lifespan(app):
     if settings.database_url:
-        Event.__table__.create(get_engine(), checkfirst=True)
+        Base.metadata.create_all(
+            get_engine(), tables=[Event.__table__, ArmSession.__table__, Alert.__table__],
+        )
     yield
 
 
@@ -32,6 +36,7 @@ app.add_middleware(
 app.include_router(register_router)
 app.include_router(me_router)
 app.include_router(events_router)
+app.include_router(guard_router)
 
 LANDING_PAGE = Path(__file__).resolve().parent / "index.html"
 app.mount("/static", StaticFiles(directory=LANDING_PAGE.parent / "static"), name="static")
