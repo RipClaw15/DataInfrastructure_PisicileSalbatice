@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .detection import picked_up_angle
-from .models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
+from .models import Alert, ArmSession, Device, Event, EventLocation, EventSnapshot, SessionLocation
 from .live import live_telemetry
 from .retention import STATE_SNAPSHOTS, as_utc
 from .schemas import AlertResponse, GuardStatus, Location
@@ -82,6 +82,11 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
         if live.location is not None:
             if saved_at is None or live.location_at >= as_utc(saved_at):
                 locations["last_location"] = live.location
+    device = db.get(Device, device_id)
+    if device is not None and device.last_seen is not None:
+        device_seen = as_utc(device.last_seen)
+        last_seen = max(as_utc(last_seen), device_seen) if last_seen else device_seen
+        last_received = max(as_utc(last_received), device_seen) if last_received else device_seen
     # Online is based on server arrival, not the phone clock. last_seen remains
     # the newest reading timestamp even when readings arrive out of order.
     online = False

@@ -6,10 +6,11 @@ import { cardTitle, headline } from '../utils/ui.ts'
 
 type OverviewCardsProps = {
     status: DeviceStatus | null
+    deviceName?: string | null
 }
 
 /** Two plain answers in one strip: is the phone connected, and how long has it been guarding. What happened is in Activity. */
-export default function OverviewCards({ status }: OverviewCardsProps) {
+export default function OverviewCards({ status, deviceName }: OverviewCardsProps) {
     const now = useNow()
     if (!status) return null
 
@@ -18,7 +19,7 @@ export default function OverviewCards({ status }: OverviewCardsProps) {
     return (
         <div className="grid divide-y divide-line rounded-xl border border-line bg-card md:grid-cols-2 md:divide-x md:divide-y-0">
             <Figure
-                title="Phone"
+                title={deviceName || 'Phone'}
                 value={
                     <span className={`inline-flex items-center gap-3 ${status.online ? 'text-ok' : 'text-warn'}`}>
                         <span className="size-3 rounded-full bg-current" />

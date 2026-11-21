@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ID_KEY = 'device_id';
 const TOKEN_KEY = 'device_token';
+const NAME_KEY = 'device_name';
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
 function generateDeviceId(): string {
@@ -40,4 +41,13 @@ export async function saveDeviceToken(token: string): Promise<void> {
 
 export async function clearDeviceToken(): Promise<void> {
   await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+export async function getDeviceName(fallback: string): Promise<string> {
+  const saved = await AsyncStorage.getItem(NAME_KEY);
+  return saved ?? fallback;
+}
+
+export async function saveDeviceName(name: string): Promise<void> {
+  await AsyncStorage.setItem(NAME_KEY, name);
 }

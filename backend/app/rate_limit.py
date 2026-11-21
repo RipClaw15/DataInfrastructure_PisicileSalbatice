@@ -1,5 +1,6 @@
 """Lightweight in-memory sliding-window rate limiter for pairing attempts."""
 
+import math
 import threading
 import time
 from collections import deque
@@ -27,9 +28,14 @@ class PairRateLimiter:
                 return
             self._prune(bucket, now)
             if len(bucket) >= settings.pair_rate_limit_max_failures:
+                retry_after = max(
+                    1,
+                    math.ceil(settings.pair_rate_limit_window_seconds - (now - bucket[0])),
+                )
                 raise HTTPException(
                     status_code=429,
                     detail="Too many attempts. Try again in a minute.",
+                    headers={"Retry-After": str(retry_after)},
                 )
 
     def record_failure(self, key: str) -> None:

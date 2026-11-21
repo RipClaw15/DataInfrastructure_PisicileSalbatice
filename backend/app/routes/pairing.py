@@ -50,6 +50,7 @@ def create_pairing_code(
 
     code = _generate_unique_code(db)
     expires_at = now + timedelta(minutes=settings.pairing_code_ttl_minutes)
+    device.last_seen = now
     db.add(PairingCode(code=code, device_id=device.device_id, expires_at=expires_at))
     db.commit()
     return PairingCodeResponse(code=code, expires_at=expires_at)
@@ -76,6 +77,9 @@ def pair_dashboard(
         raise HTTPException(status_code=400, detail="Invalid or expired code")
 
     entry.used_at = now
+    device = db.get(Device, entry.device_id)
+    if device is not None:
+        device.last_seen = now
     viewer_token = generate_token()
     db.add(ViewerToken(token_hash=hash_token(viewer_token), device_id=entry.device_id))
     db.commit()

@@ -71,8 +71,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip().rstrip("/") for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Retry-After"],
 )
 app.include_router(register_router)
 app.include_router(me_router)

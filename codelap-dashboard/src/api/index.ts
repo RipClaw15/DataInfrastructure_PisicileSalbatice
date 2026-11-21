@@ -35,20 +35,28 @@ export class NetworkError extends Error {
 
 export class ApiError extends Error {
     status: number
-    constructor(status: number, message: string) {
+    retryAfterSeconds?: number
+    constructor(status: number, message: string, retryAfterSeconds?: number) {
         super(message)
         this.status = status
+        this.retryAfterSeconds = retryAfterSeconds
     }
 }
 
-export const hasToken = () => localStorage.getItem(TOKEN_KEY) !== null
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
+// Clear any legacy localStorage token so opening /dashboard in a new session starts on the pairing screen.
+localStorage.removeItem(TOKEN_KEY)
+
+export const hasToken = () => sessionStorage.getItem(TOKEN_KEY) !== null
+export const clearToken = () => {
+    sessionStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+}
 
 async function request<T>(path: string, init: RequestInit = {}, auth = true): Promise<T> {
     const headers = new Headers(init.headers)
     if (init.body) headers.set('Content-Type', 'application/json')
     if (auth) {
-        const token = localStorage.getItem(TOKEN_KEY)
+        const token = sessionStorage.getItem(TOKEN_KEY)
         if (token) headers.set('Authorization', `Bearer ${token}`)
     }
 
@@ -67,7 +75,14 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
                 if (signal.aborted) throw error
                 return null
             })
-            throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`)
+            const retryHeader = res.headers.get('Retry-After')
+            const parsedRetry = retryHeader ? Number.parseInt(retryHeader, 10) : Number.NaN
+            const retryAfterSeconds = Number.isFinite(parsedRetry) && parsedRetry > 0
+                ? parsedRetry
+                : res.status === 429
+                    ? 60
+                    : undefined
+            throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`, retryAfterSeconds)
         }
         return await res.json() as T
     } catch (error) {
@@ -157,7 +172,7 @@ export async function pair(code: string): Promise<PairResponse> {
         )
     }
 
-    localStorage.setItem(TOKEN_KEY, data.viewer_token)
+    sessionStorage.setItem(TOKEN_KEY, data.viewer_token)
     return data
 }
 

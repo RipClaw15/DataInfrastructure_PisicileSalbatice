@@ -3,8 +3,10 @@ import { Platform } from 'react-native';
 import {
   clearDeviceToken,
   getDeviceId,
+  getDeviceName,
   getDeviceToken,
   regenerateDeviceId,
+  saveDeviceName,
   saveDeviceToken,
 } from './deviceId';
 import type { GeoPoint } from './location';
@@ -132,6 +134,8 @@ async function getOrRegisterToken(): Promise<string> {
 
 async function registerDevice(): Promise<string> {
   let deviceId = await getDeviceId();
+  const defaultName = Platform.OS === 'ios' ? 'iPhone' : 'Android Phone';
+  const deviceName = await getDeviceName(defaultName);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController();
@@ -143,7 +147,7 @@ async function registerDevice(): Promise<string> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           device_id: deviceId,
-          device_name: Platform.OS === 'ios' ? 'iPhone' : 'Android Phone',
+          device_name: deviceName,
         }),
         signal: controller.signal,
       });
@@ -295,6 +299,39 @@ export async function getStatus(deviceId: string): Promise<ApiResult<DeviceStatu
 /** POST /api/me/disarm: stops guarding. */
 export function disarm(deviceId: string, options: RequestOptions = {}): Promise<ApiResult<DeviceStatus>> {
   return post('/api/me/disarm', undefined, 200, () => mockStatus(deviceId, 'DISARMED', null), options);
+}
+
+/** PATCH /api/me: rename this phone locally and on the backend. */
+export async function updateDeviceName(name: string): Promise<ApiResult<{ device_name: string | null }>> {
+  const trimmed = name.trim();
+  await saveDeviceName(trimmed);
+  if (isMockMode) {
+    return { ok: true, data: { device_name: trimmed || null } };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const token = await getOrRegisterToken();
+    const res = await fetch(`${API_URL}/api/me`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ device_name: trimmed || null }),
+      signal: controller.signal,
+    });
+    if (res.status === 200) {
+      const data = (await res.json()) as { device_name: string | null };
+      return { ok: true, data };
+    }
+    return { ok: false, reason: `could not save name (${res.status})` };
+  } catch {
+    return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function mockStatus(deviceId: string, state: DeviceStatus['state'], armedAt: string | null): DeviceStatus {

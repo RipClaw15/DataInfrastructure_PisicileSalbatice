@@ -32,6 +32,10 @@ class DeviceResponse(BaseModel):
     last_seen: UtcTimestamp | None
 
 
+class DeviceUpdateRequest(BaseModel):
+    device_name: Annotated[str, StringConstraints(max_length=64)] | None = None
+
+
 class PairingCodeResponse(BaseModel):
     code: str
     expires_at: UtcTimestamp

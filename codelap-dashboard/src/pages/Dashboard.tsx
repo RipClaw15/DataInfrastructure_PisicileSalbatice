@@ -1,4 +1,4 @@
-import { getAlerts, getEvents, getLive, getStatus } from '../api'
+import { getAlerts, getEvents, getLive, getMe, getStatus } from '../api'
 import { ACTIVE_POLL_SECONDS, POLL_SECONDS } from '../api/consts.ts'
 import type { DeviceStatus } from '../api/types.ts'
 import Header from '../components/Header.tsx'
@@ -18,6 +18,7 @@ const isArmed = (s: DeviceStatus | null) => s !== null && s.state !== 'DISARMED'
 
 export default function Dashboard({ onUnpair }: DashboardProps) {
     const events = usePolling(() => getEvents(50), POLL_SECONDS, onUnpair)
+    const me = usePolling(() => getMe(), POLL_SECONDS, onUnpair)
     const readings = events.data?.events ?? null
 
     // Poll fast while armed so the alert shows up within ~1 s
@@ -67,7 +68,7 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
             )}
 
             <StatusHero status={status.data} rest={rest} current={current} />
-            <OverviewCards status={status.data} />
+            <OverviewCards status={status.data} deviceName={me.data?.device_name} />
             <div className="grid gap-5 lg:grid-cols-3">
                 <div className="lg:col-span-2">
                     <LocationMap

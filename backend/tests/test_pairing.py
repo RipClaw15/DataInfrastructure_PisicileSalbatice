@@ -36,12 +36,15 @@ def test_pairing_lifecycle_and_viewer_permissions(client, auth_headers, payload)
     assert len(code) == 6 and code.isdigit()
     assert code_body["expires_at"].endswith("Z")
 
-    # 2. Dashboard pairs with the code
+    # 2. Dashboard pairs with the code -> phone is immediately online ("Connected") before arming
     pair_res = client.post("/api/pair", json={"code": code})
     assert pair_res.status_code == 200
     pair_body = pair_res.json()
     assert pair_body["device_id"] == "demo-phone-01"
     viewer_headers = {"Authorization": f"Bearer {pair_body['viewer_token']}"}
+    initial_status = client.get("/api/me/status", headers=viewer_headers).json()
+    assert initial_status["online"] is True
+    assert initial_status["last_seen"] is not None
 
     # 3. Code is single-use
     reuse = client.post("/api/pair", json={"code": code})
@@ -109,3 +112,20 @@ def test_pair_rate_limit_blocks_after_5_failures(client, auth_headers):
     blocked = client.post("/api/pair", json={"code": valid_code})
     assert blocked.status_code == 429
     assert blocked.json() == {"detail": "Too many attempts. Try again in a minute."}
+
+
+def test_update_device_name_requires_device_token(client, auth_headers):
+    # Phone can rename itself via PATCH /api/me
+    res = client.patch("/api/me", json={"device_name": "  Maria's iPhone  "}, headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["device_name"] == "Maria's iPhone"
+    assert client.get("/api/me", headers=auth_headers).json()["device_name"] == "Maria's iPhone"
+
+    # Viewer token can read the new name, but cannot rename the phone
+    code = client.post("/api/me/pairing-code", headers=auth_headers).json()["code"]
+    viewer_token = client.post("/api/pair", json={"code": code}).json()["viewer_token"]
+    viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+    assert client.get("/api/me", headers=viewer_headers).json()["device_name"] == "Maria's iPhone"
+    denied = client.patch("/api/me", json={"device_name": "Hacked"}, headers=viewer_headers)
+    assert denied.status_code == 403
+    assert denied.json() == {"detail": "Not allowed"}

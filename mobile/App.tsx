@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import {
   API_URL,
@@ -9,10 +19,11 @@ import {
   isMockMode,
   requestPairingCode,
   sendEvent,
+  updateDeviceName,
   type EventPayload,
   type PairingCodeResponse,
 } from './src/api';
-import { getDeviceId } from './src/deviceId';
+import { getDeviceId, getDeviceName } from './src/deviceId';
 import { GuardScreen } from './src/GuardScreen';
 import { useLocation, type LocationState } from './src/location';
 import { getPin, savePin } from './src/pin';
@@ -40,7 +51,12 @@ type PairingState =
 export default function App() {
   const sensor = useAccelerometer();
   const gps = useLocation();
+  const defaultName = Platform.OS === 'ios' ? 'iPhone' : 'Android Phone';
   const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState(defaultName);
+  const [draftName, setDraftName] = useState(defaultName);
+  const [editingName, setEditingName] = useState(false);
+  const [nameStatus, setNameStatus] = useState<'idle' | 'saving' | 'saved' | string>('idle');
   const [pin, setPin] = useState<string | null>(null);
   const [pinSetup, setPinSetup] = useState<PinSetup | null>(null);
   const [stealth, setStealth] = useState(true);
@@ -54,17 +70,26 @@ export default function App() {
     getDeviceId().then((id) => {
       if (active) setDeviceId(id);
     });
+    getDeviceName(defaultName).then((name) => {
+      if (active) {
+        setDeviceName(name);
+        setDraftName(name);
+      }
+      // Silently register & heartbeat on launch so the dashboard shows Connected right away.
+      ensureRegistered().then((res) => {
+        if (active && res.ok) {
+          setDeviceId(res.data.deviceId);
+          updateDeviceName(name);
+        }
+      });
+    });
     getPin().then((saved) => {
       if (active) setPin(saved);
-    });
-    // Silently register this phone on first launch so it receives a device_token.
-    ensureRegistered().then((res) => {
-      if (active && res.ok) setDeviceId(res.data.deviceId);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [defaultName]);
 
   const reading = sensor.status === 'ready' ? sensor.reading : null;
   const location = gps.status === 'ready' ? gps.point : null;
@@ -120,6 +145,27 @@ export default function App() {
     }
   }
 
+  function startRenaming() {
+    setDraftName(deviceName);
+    setNameStatus('idle');
+    setEditingName(true);
+  }
+
+  async function onSaveDeviceName() {
+    const cleaned = draftName.trim() || defaultName;
+    setNameStatus('saving');
+    const result = await updateDeviceName(cleaned);
+    if (result.ok) {
+      const savedName = result.data.device_name || cleaned;
+      setDeviceName(savedName);
+      setDraftName(savedName);
+      setEditingName(false);
+      setNameStatus('saved');
+    } else {
+      setNameStatus(result.reason);
+    }
+  }
+
   if (guard.phase !== 'disarmed' && pin) {
     return (
       <GuardScreen
@@ -158,13 +204,93 @@ export default function App() {
   }
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>StayPut</Text>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>StayPut</Text>
+          <View style={[styles.badge, isMockMode ? styles.badgeMock : styles.badgeLive]}>
+            <Text style={isMockMode ? styles.badgeMockText : styles.badgeLiveText}>
+              {isMockMode ? 'MOCK MODE' : `LIVE: ${API_URL}`}
+            </Text>
+          </View>
+        </View>
 
-        <View style={[styles.badge, isMockMode ? styles.badgeMock : styles.badgeLive]}>
-          <Text style={isMockMode ? styles.badgeMockText : styles.badgeLiveText}>{isMockMode ? 'MOCK MODE' : `LIVE: ${API_URL}`}</Text>
+        {/* Device identity + inline rename right at the top so the keyboard never covers it */}
+        <View style={styles.card}>
+          <View style={styles.deviceHeader}>
+            <View style={styles.deviceTitleWrap}>
+              <Text style={styles.label}>This phone</Text>
+              {!editingName && (
+                <Text style={styles.deviceNameText} numberOfLines={1}>
+                  {deviceName}
+                </Text>
+              )}
+              <Text style={styles.small}>
+                {deviceId ?? 'loading…'} · {Platform.OS}
+                {nameStatus === 'saved' ? ' · Saved ✓' : ''}
+              </Text>
+            </View>
+
+            {!editingName && (
+              <Pressable
+                onPress={startRenaming}
+                style={({ pressed }) => [styles.renamePill, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.renamePillText}>Rename</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {editingName && (
+            <View style={styles.renameBox}>
+              <TextInput
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder="Enter phone name"
+                placeholderTextColor={colors.muted}
+                maxLength={64}
+                autoFocus
+                selectTextOnFocus
+                returnKeyType="done"
+                onSubmitEditing={onSaveDeviceName}
+                style={styles.nameInput}
+              />
+              <View style={styles.renameActions}>
+                <Pressable
+                  onPress={() => {
+                    setEditingName(false);
+                    setNameStatus('idle');
+                  }}
+                  style={({ pressed }) => [styles.cancelButton, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={onSaveDeviceName}
+                  disabled={nameStatus === 'saving'}
+                  style={({ pressed }) => [
+                    styles.saveButton,
+                    nameStatus === 'saving' && styles.buttonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {nameStatus === 'saving' ? 'Saving…' : 'Save name'}
+                  </Text>
+                </Pressable>
+              </View>
+              {nameStatus !== 'idle' && nameStatus !== 'saving' && nameStatus !== 'saved' && (
+                <Text style={[styles.small, styles.statusFailed]}>Failed: {nameStatus}</Text>
+              )}
+            </View>
+          )}
         </View>
 
         {guard.lastSession && <LastSession session={guard.lastSession} />}
@@ -252,12 +378,6 @@ export default function App() {
           <Text style={styles.small}>{locationLabel(gps)}</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Device</Text>
-          <Text style={styles.mono}>{deviceId ?? 'loading…'}</Text>
-          <Text style={styles.small}>{Platform.OS}</Text>
-        </View>
-
         <Pressable
           onPress={onSend}
           disabled={!canSend}
@@ -281,7 +401,7 @@ export default function App() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -351,8 +471,9 @@ function statusLabel(status: SendStatus): string {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page },
   pinScreen: { alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 },
-  content: { padding: 20, paddingTop: 64, gap: 14 },
+  content: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 14 },
   center: { textAlign: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { fontSize: 28, fontWeight: '700', color: colors.ink, letterSpacing: -0.5 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
   badgeMock: { backgroundColor: colors.warnSoft, borderColor: colors.warn },
@@ -366,6 +487,45 @@ const styles = StyleSheet.create({
   sessionText: { fontSize: 17, fontWeight: '600', color: colors.ink },
   label: { fontSize: 13, fontWeight: '600', color: colors.muted, textTransform: 'uppercase' },
   small: { fontSize: 13, color: colors.muted },
+  deviceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  deviceTitleWrap: { flex: 1, gap: 2 },
+  deviceNameText: { fontSize: 20, fontWeight: '700', color: colors.ink },
+  renamePill: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.page,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  renamePillText: { fontSize: 13, fontWeight: '600', color: colors.accent },
+  renameBox: { marginTop: 8, gap: 10 },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 16,
+    color: colors.ink,
+    backgroundColor: colors.page,
+  },
+  renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  cancelButtonText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
+  saveButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  saveButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: '700' },
   pairingCode: {
     fontSize: 40,
     fontWeight: '700',
