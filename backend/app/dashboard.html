@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Live phone readings and guard alerts from StayPut.">
+  <meta name="theme-color" content="#111315">
+  <title>Live dashboard · StayPut</title>
+  <link rel="icon" type="image/svg+xml" href="/static/stayput-icon.svg">
+  <link rel="stylesheet" href="/static/guard-dashboard.css">
+  <script type="module" src="/static/guard-dashboard.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to dashboard</a>
+  <div class="page">
+    <header class="header">
+      <a class="brand" href="/" aria-label="StayPut home"><span class="brand-mark" aria-hidden="true">S</span>StayPut<span class="tag">LIVE DASHBOARD</span></a>
+      <nav aria-label="Main navigation"><a href="/">Home</a><a href="/docs">API docs</a></nav>
+    </header>
+    <main id="main">
+      <section class="intro">
+        <div><p class="eyebrow">YOUR PHONE. KEEPING WATCH.</p><h1>A little peace of mind.</h1><p class="muted">Readings from your phones, saved as they happen.</p></div>
+        <div class="connection"><span id="connection-label" class="connection-label" role="status">Connecting…</span><p id="updated-at" class="meta">Waiting for the first update</p><button id="refresh" type="button">Refresh now</button></div>
+      </section>
+      <p id="error-banner" class="notice error" role="alert" hidden></p>
+      <p id="guard-notice" class="notice" role="status" hidden></p>
+      <section class="toolbar" aria-label="Device selection">
+        <div class="device-picker"><label for="device-select">Watching phone</label><select id="device-select" disabled><option value="">Waiting for readings</option></select></div>
+        <p id="device-count" class="muted">Discovering phones…</p>
+      </section>
+      <section class="overview" aria-label="Current phone status">
+        <article id="guard-card" class="card guard-card" data-state="UNKNOWN">
+          <p class="eyebrow">GUARD STATUS</p><h2 id="guard-state" aria-live="polite">Waiting for data</h2>
+          <p id="guard-description" class="muted">Send a reading from the phone app to get started.</p>
+          <dl class="guard-details"><div><dt>Connection</dt><dd id="phone-online">—</dd></div><div><dt>Armed since</dt><dd id="armed-at">—</dd></div></dl>
+        </article>
+        <article class="card"><p class="eyebrow">LATEST MAGNITUDE</p><p class="metric"><span id="magnitude">—</span><span class="unit">g</span></p><p class="muted">Gravity included; a resting phone reads about 1 g.</p><dl class="axes"><div><dt>X</dt><dd id="axis-x">—</dd></div><div><dt>Y</dt><dd id="axis-y">—</dd></div><div><dt>Z</dt><dd id="axis-z">—</dd></div></dl></article>
+        <article class="card"><p class="eyebrow">LATEST READING</p><h2 id="latest-time" class="reading-time">—</h2><p id="latest-date" class="muted">No reading yet</p><dl class="guard-details"><div><dt>Received by server</dt><dd id="received-at">—</dd></div><div><dt>Readings in window</dt><dd id="reading-count">0</dd></div></dl></article>
+      </section>
+      <section class="card chart-card" aria-labelledby="chart-heading">
+        <div class="section-heading"><div><p class="eyebrow">MOTION AT A GLANCE</p><h2 id="chart-heading">Accelerometer magnitude</h2></div><span class="legend"><span aria-hidden="true"></span>Magnitude · g</span></div>
+        <p id="chart-empty" class="empty">Your readings will appear here.</p>
+        <svg id="motion-chart" viewBox="0 0 1000 240" role="img" aria-labelledby="chart-heading chart-description" hidden><desc id="chart-description">No readings yet.</desc><g id="chart-grid"></g><path id="chart-area" class="chart-area"></path><path id="chart-line" class="chart-line"></path><g id="chart-points"></g></svg>
+        <div class="chart-footer"><span id="chart-start">—</span><span id="chart-caption">Up to 120 readings for this phone</span><span id="chart-end">—</span></div>
+      </section>
+      <section class="card alerts-card" aria-labelledby="alerts-heading">
+        <div class="section-heading"><div><p class="eyebrow">WHEN SOMETHING MOVES</p><h2 id="alerts-heading">Alert history</h2></div><span id="alert-count" class="tag">0 RECENT ALERTS</span></div>
+        <p id="alerts-empty" class="empty">No alerts to display.</p><ol id="alert-list" class="alert-list"></ol>
+      </section>
+      <section class="card readings-card" aria-labelledby="readings-heading">
+        <div class="section-heading"><div><p class="eyebrow">FROM PHONE TO DATABASE</p><h2 id="readings-heading">Recent readings</h2></div><span class="meta">Newest first · up to 50 rows</span></div>
+        <p id="readings-empty" class="empty">Open the mobile app and tap Send reading.</p>
+        <div class="table-scroll"><table id="readings-table" hidden><caption class="sr-only">Recent stored accelerometer readings for the selected phone</caption><thead><tr><th scope="col">Event</th><th scope="col">Taken at</th><th scope="col">Magnitude</th><th scope="col">X · g</th><th scope="col">Y · g</th><th scope="col">Z · g</th><th scope="col">Received at</th></tr></thead><tbody id="readings-body"></tbody></table></div>
+      </section>
+    </main>
+    <footer><span>StayPut · Pisicile Sălbatice</span><span id="polling-note">Refreshes every 2 seconds while visible.</span><p>Devices and charts use the latest 500 stored readings across all phones. Alert history shows up to 20 alerts for the selected phone. Times use your local timezone.</p></footer>
+  </div>
+  <noscript><p class="notice">Enable JavaScript to load live readings.</p></noscript>
+</body>
+</html>
