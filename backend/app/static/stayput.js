@@ -1,8 +1,8 @@
 // Presentation only: no telemetry requests, no device state changes.
 const descriptions = {
-  DISARMED: ['Disarmed', 'Taking a break. The phone is not guarding.'],
-  GUARDING: ['Guarding', 'Phone resting. Watching for a change in orientation.'],
-  ALERT: ['Picked up', 'Movement detected. The alert stays on until disarmed.'],
+  DISARMED: ['Disarmed', "The phone isn't guarding."],
+  GUARDING: ['Guarding', 'The phone is lying still and watching your stuff.'],
+  ALERT: ['Picked up', 'Someone moved it. The alarm stays on until you disarm it.'],
 };
 const buttons = document.querySelectorAll('[data-preview]');
 buttons.forEach(button => {

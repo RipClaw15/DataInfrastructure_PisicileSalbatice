@@ -2,7 +2,8 @@
 
 The Railway FastAPI app serves the StayPut page at `/`, with styles, the status
 preview script, and favicon under `/static/stayput*`. The Vercel React frontend
-renders the same presentation through `codelap-dashboard/src/StayPutLanding.tsx`.
+renders the same presentation at `/` through `codelap-dashboard/src/pages/LandingPage.tsx`,
+and the live dashboard at `/dashboard`.
 
 This is a presentation update, not a connected guard dashboard. The Disarmed,
 Guarding, and Alert buttons change sample UI state only. They make no telemetry
@@ -15,8 +16,10 @@ makes the remaining cloud integration explicit.
 - `static/stayput.css`: responsive presentation styles.
 - `static/stayput.js`: local preview state switches.
 - `static/stayput-icon.svg`: shield favicon.
-- `../../codelap-dashboard/src/StayPutLanding.tsx`: React version for Vercel.
-- `../../codelap-dashboard/src/stayput.css`: matching React styles.
+- `../../codelap-dashboard/src/pages/LandingPage.tsx`: React version for Vercel, built from
+  the sections in `../../codelap-dashboard/src/components/landing/`.
+- `../../codelap-dashboard/src/styles/landing.css`: matching React styles, using the shared
+  palette from `../../codelap-dashboard/src/index.css`.
 
 The two presentations intentionally share copy and CSS without a cross-project
 build dependency. Keep their content/styles aligned when updating them. This
