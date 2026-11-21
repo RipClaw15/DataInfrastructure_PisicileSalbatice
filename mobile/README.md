@@ -1,6 +1,6 @@
 # Mobile app
 
-Expo (React Native) app that reads the phone's accelerometer, shows the values live and sends a reading to the API when you tap **Send reading**.
+Expo (React Native) app that turns a phone into a motion alarm: it reads the accelerometer, and while **armed** it sends a reading every second so the server can tell when the phone is moved.
 
 ## What you need
 - **Node 26 LTS** (`nvm use` picks it up from `.nvmrc`)
@@ -55,8 +55,14 @@ npx expo start
 Check the address under the QR code uses the same IP the dummy server printed (`exp://<that IP>:8081`), then scan the QR code (iPhone: Camera app; Android: Expo Go).
 On iPhone, allow **Local Network** access for Expo Go when asked.
 
-You should see live x/y/z values. Tap **Send reading**: the app shows `Sent ✓ id …` and the dummy server prints the reading.
-The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
+You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
+
+- **Send reading:** sends one reading. The app shows `Sent ✓ id …` and the dummy server prints it.
+- **Arm:** tap Arm, then put the phone down. It shows **PUT IT DOWN** and arms only once it has been lying still for 2 seconds (at least 5 seconds after the tap),
+  so the resting position is where it lies, not where you held it. Then the screen shows **GUARDING**, a timer, and sent/failed counters, and stays awake.
+  The phone now sends a reading every second; the dummy server prints `== ARMED` and how far each reading has turned from the resting position.
+  Pick the phone up: the server prints `!! ALERT picked_up …`. Tap **Disarm** to stop.
+- **Keep the app open while armed:** phones pause apps in the background.
 
 ## Troubleshooting
 | Problem | Fix |
@@ -72,8 +78,10 @@ The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
 ## Files
 | Path | What |
 |---|---|
-| `App.tsx` | The screen: live readings, Send button, status, last payload |
+| `App.tsx` | Main screen: live readings, Arm and Send buttons, status, last payload |
+| `src/GuardScreen.tsx` | The dark "GUARDING" screen shown while armed (keeps the screen awake) |
+| `src/useGuard.ts` | Arm/disarm and the one-reading-per-second auto-send |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
-| `src/api.ts` | `POST /api/events` with timeout, retries and mock mode |
+| `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |
 | `src/deviceId.ts` | Creates `phone-xxxxxxxx` once and keeps it |
 | `dev-server/` | Dummy API for testing the app on its own + 189 captured real readings |

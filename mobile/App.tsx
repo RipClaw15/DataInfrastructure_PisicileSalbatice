@@ -4,7 +4,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 
 
 import { API_URL, buildPayload, isMockMode, sendEvent, type EventPayload } from './src/api';
 import { getDeviceId } from './src/deviceId';
+import { GuardScreen } from './src/GuardScreen';
 import { useAccelerometer } from './src/sensor';
+import { useGuard } from './src/useGuard';
 
 type SendStatus =
   | { kind: 'idle' }
@@ -25,8 +27,10 @@ export default function App() {
   }, []);
 
   const reading = sensor.status === 'ready' ? sensor.reading : null;
+  const guard = useGuard(deviceId, reading, simulateError);
   const busy = sendStatus.kind === 'sending' || sendStatus.kind === 'retrying';
   const canSend = reading !== null && deviceId !== null && !busy;
+  const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed';
 
   async function onSend() {
     if (!reading || !deviceId) return;
@@ -39,6 +43,21 @@ export default function App() {
       onRetry: (attempt, of) => setSendStatus({ kind: 'retrying', attempt, of }),
     });
     setSendStatus(result.ok ? { kind: 'sent', id: result.data.id } : { kind: 'failed', reason: result.reason });
+  }
+
+  if (guard.phase !== 'disarmed') {
+    return (
+      <GuardScreen
+        phase={guard.phase}
+        armedAt={guard.armedAt}
+        stats={guard.stats}
+        magnitude={reading?.magnitude ?? null}
+        settleSecondsLeft={guard.settleSecondsLeft}
+        isStill={guard.isStill}
+        onCancel={guard.cancel}
+        onDisarm={guard.disarm}
+      />
+    );
   }
 
   return (
@@ -68,6 +87,16 @@ export default function App() {
           <Text style={styles.mono}>{deviceId ?? 'loading…'}</Text>
           <Text style={styles.small}>{Platform.OS}</Text>
         </View>
+
+        <Pressable
+          onPress={guard.arm}
+          disabled={!canArm}
+          style={({ pressed }) => [styles.button, styles.armButton, !canArm && styles.buttonDisabled, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.buttonText}>Arm</Text>
+        </Pressable>
+        <Text style={styles.small}>Tap Arm, then put the phone down on your stuff. It arms once it lies still, then sends a reading every second.</Text>
+        {guard.error && <Text style={[styles.status, styles.statusFailed]}>{guard.error}</Text>}
 
         <Pressable
           onPress={onSend}
@@ -151,6 +180,7 @@ const styles = StyleSheet.create({
   magnitude: { fontSize: 44, fontWeight: '700', textAlign: 'center', marginTop: 8, fontVariant: ['tabular-nums'] },
   mono: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 13 },
   button: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  armButton: { backgroundColor: '#1f2933' },
   buttonDisabled: { backgroundColor: '#9aa5b1' },
   buttonPressed: { opacity: 0.8 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
