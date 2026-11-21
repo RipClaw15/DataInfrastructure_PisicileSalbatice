@@ -12,6 +12,7 @@ import {
 import type { GeoPoint } from './location';
 import { utcNow, type Reading } from './sensor';
 
+/** Empty → mock mode (no network calls). Read at bundle time; restart Expo after changing .env. */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 export const isMockMode = API_URL === '';
 
@@ -28,6 +29,7 @@ export type EventPayload = {
   unit: 'g';
   timestamp: string;
   axes: Axes;
+  /** Optional live location: sent by Send reading (debugging) and by auto-send while in ALERT. */
   location?: GeoPoint;
 };
 
@@ -35,6 +37,7 @@ export type EventResponse = {
   id: number;
   device_id: string;
   received_at: string;
+  /** false (with id 0): checked but not kept; the backend keeps only state changes. Missing on older servers. */
   stored?: boolean;
 };
 
@@ -64,6 +67,7 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; reason: string }
 
 type RequestOptions = {
   simulateError?: boolean;
+  /** Retry 5xx/network failures (1 s, 2 s, 4 s). Off for auto-send, where the next reading follows anyway. */
   retry?: boolean;
   onRetry?: (attempt: number, of: number) => void;
 };
@@ -80,7 +84,8 @@ export function buildPayload(deviceId: string, reading: Reading, location: GeoPo
   };
 }
 
-class RetryableError extends Error {}
+/** Thrown for failures worth retrying (5xx, timeout, no network). */
+class RetryableError extends Error { }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -203,6 +208,11 @@ async function postOnce<T>(path: string, body: unknown, okStatus: number): Promi
   throw new Error(`unexpected response ${res.status}`);
 }
 
+/**
+ * POSTs to the API, or returns `mock()` after a short delay in mock mode.
+ * Retries 5xx/network failures up to 3 times (1 s, 2 s, 4 s) unless `retry` is false;
+ * anything else (e.g. 422) fails immediately.
+ */
 async function post<T>(path: string, body: unknown, okStatus: number, mock: () => T, options: RequestOptions): Promise<ApiResult<T>> {
   const maxRetries = options.retry === false ? 0 : RETRY_DELAYS_MS.length;
   for (let attempt = 0; ; attempt++) {
@@ -274,6 +284,11 @@ export async function getStatus(deviceId: string): Promise<ApiResult<DeviceStatu
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     });
+    if (res.status === 401) {
+      cachedToken = null;
+      await clearDeviceToken();
+      return { ok: false, reason: 're-authenticating device (401)' };
+    }
     if (res.status !== 200) return { ok: false, reason: `status check failed (${res.status})` };
     return { ok: true, data: (await res.json()) as DeviceStatus };
   } catch {
@@ -313,12 +328,66 @@ export async function updateDeviceName(name: string): Promise<ApiResult<{ device
       const data = (await res.json()) as { device_name: string | null };
       return { ok: true, data };
     }
+    if (res.status === 401) {
+      cachedToken = null;
+      await clearDeviceToken();
+      return { ok: false, reason: 're-authenticating device (401)' };
+    }
     return { ok: false, reason: `could not save name (${res.status})` };
   } catch {
     return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * GET /api/me: how many dashboards follow this phone. Arming needs at least one (the server refuses otherwise),
+ * because the dashboard is where the alarm shows up. Mock mode counts as paired.
+ */
+export async function getPairedDashboards(): Promise<ApiResult<number>> {
+  if (isMockMode) return { ok: true, data: 1 };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const token = await getOrRegisterToken();
+    const res = await fetch(`${API_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+    if (res.status !== 200) return { ok: false, reason: `check failed (${res.status})` };
+    const data = (await res.json()) as { paired_dashboards?: number };
+    return { ok: true, data: data.paired_dashboards ?? 0 };
+  } catch {
+    return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * DELETE /api/me: deletes this phone and everything the backend stored about it (readings, locations, alerts,
+ * paired dashboards). Then the app forgets its ID and token, so it starts over as a new phone.
+ * A 401 means the backend no longer knows this phone, so there's nothing left to delete there.
+ */
+export async function deleteMyData(): Promise<ApiResult<null>> {
+  if (!isMockMode) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const token = await getOrRegisterToken();
+      const res = await fetch(`${API_URL}/api/me`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      if (res.status !== 204 && res.status !== 401) return { ok: false, reason: `could not delete (${res.status})` };
+    } catch {
+      return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  cachedToken = null;
+  await regenerateDeviceId();
+  return { ok: true, data: null };
 }
 
 function mockStatus(deviceId: string, state: DeviceStatus['state'], armedAt: string | null): DeviceStatus {

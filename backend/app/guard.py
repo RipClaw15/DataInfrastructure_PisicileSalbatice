@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .detection import picked_up_angle
-from .models import Alert, ArmSession, Device, Event, EventLocation, EventSnapshot, SessionLocation
+from .models import Alert, ArmSession, Device, Event, EventLocation, EventSnapshot, SessionLocation, ViewerToken
 from .live import live_telemetry
 from .retention import STATE_SNAPSHOTS, as_utc
 from .schemas import AlertResponse, GuardStatus, Location
@@ -28,6 +28,11 @@ def lock_device(db: Session, device_id: str) -> None:
     if db.get_bind().dialect.name == "postgresql":
         key = int.from_bytes(hashlib.sha256(device_id.encode()).digest()[:8], signed=True)
         db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+
+
+def paired_dashboards(db: Session, device_id: str) -> int:
+    """How many dashboards hold a read-only token for this phone."""
+    return db.scalar(select(func.count()).select_from(ViewerToken).where(ViewerToken.device_id == device_id)) or 0
 
 
 def open_session(db: Session, device_id: str) -> ArmSession | None:

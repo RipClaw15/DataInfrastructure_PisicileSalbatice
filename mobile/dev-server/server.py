@@ -21,13 +21,14 @@ from urllib.parse import parse_qs, urlparse
 REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axes")
 
 
-PICKED_UP_DEG = 15.0
+# Contract v1 detection: moved more than this from the resting position -> one picked_up alert.
+PICKED_UP_DEG = 6.0
 
 events: list[dict] = []
-armed: dict[str, dict] = {}  
-alerts: list[dict] = []  
+armed: dict[str, dict] = {}  # device_id -> {"armed_at", "axes" (resting position), "location" (where armed), "alert" (this session's, or None)}
+alerts: list[dict] = []  # all sessions, oldest first
 last_seen: dict[str, str] = {}
-last_location: dict[str, dict] = {}  
+last_location: dict[str, dict] = {}  # device_id -> location of the newest reading that had one
 
 DEVICE_PATH = re.compile(r"^/api/devices/([a-z0-9-]{3,64})/(arm|disarm|status|alerts)$")
 
@@ -48,7 +49,7 @@ def angle_deg(a: dict, b: dict) -> float:
 
 
 def check_reading(session: dict, reading: dict) -> dict | None:
-    """Contract v1: the first reading more than 15 deg from rest creates the session's one alert."""
+    """Contract v1: the first reading more than 6 deg from rest creates the session's one alert."""
     if session["alert"] or angle_deg(session["axes"], reading["axes"]) <= PICKED_UP_DEG:
         return None
     alert = {
@@ -206,7 +207,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, status(device_id))
 
     def log_message(self, format, *args) -> None:
-        pass  
+        pass  # readings are printed in do_POST; skip the default access log
 
 
 def lan_ip() -> str:

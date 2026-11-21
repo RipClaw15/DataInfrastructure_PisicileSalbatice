@@ -1,12 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import current_device, current_phone_any_token
+from ..config import settings
 from ..db import get_db
-from ..guard import alert_response, device_status, lock_device, open_session, utc_now
+from ..guard import alert_response, device_status, lock_device, open_session, paired_dashboards, utc_now
 from ..live import live_telemetry
 from ..models import Alert, ArmSession, Device, SessionLocation
 from ..retention import save_session_snapshot
@@ -23,6 +24,8 @@ def arm(
     db: Database,
 ):
     device_id = device.device_id
+    if settings.require_dashboard_to_arm and paired_dashboards(db, device_id) == 0:
+        raise HTTPException(status_code=409, detail="Pair a dashboard first: it's where the alarm shows up.")
     lock_device(db, device_id)
     previous = open_session(db, device_id)
     if previous:

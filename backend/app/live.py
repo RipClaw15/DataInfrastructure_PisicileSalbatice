@@ -64,6 +64,10 @@ class LiveTelemetry:
             self._items.move_to_end(reading.device_id)
             self._prune(now)
 
+    def forget(self, device_id: str) -> None:
+        with self._lock:
+            self._items.pop(device_id, None)
+
     def clear(self) -> None:
         with self._lock:
             self._items.clear()

@@ -3,7 +3,7 @@
 import math
 from collections.abc import Sequence
 
-PICKED_UP_DEG = 15.0
+PICKED_UP_DEG = 6.0
 
 
 def angle_deg(rest: Sequence[float], reading: Sequence[float]) -> float:

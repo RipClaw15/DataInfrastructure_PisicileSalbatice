@@ -200,12 +200,14 @@ The number of rows depends on what **happened** (arm, alert, distance travelled,
 ### Detection rule (backend)
 On **Arm**, save the resting position: the `axes` from the arm request. Then, for each reading received while `GUARDING`:
 
-> angle between the reading's `axes` and the resting `axes` > **15°** → create **one** `picked_up` alert → state `ALERT`
+> angle between the reading's `axes` and the resting `axes` > **6°** → create **one** `picked_up` alert → state `ALERT`
 
 - **Angle** = `acos( (a·b) / (|a| |b|) )` in degrees, where `a`, `b` are the x/y/z vectors.
 - **One alert per session:** while `ALERT`, readings are stored but create no more alerts.
 - Readings received while `DISARMED` are stored as in v0 but never create alerts.
-- Real data: lying on a table the angle stays at ~0.2–0.6°; picking the phone up gives 25–57°.
+- Real data: lying on a table ~0.2–0.6°; writing or tapping on the table up to 4.5°; held level in the hand or carried off,
+  past 6° within 1–2 s (a hand never holds it perfectly level); picked up normally 25–57°. 6° catches a phone carried away
+  level, which 15° missed, and stays clear of writing on the table.
 - v1 starts with `picked_up` only. The other alert types in [`IDEA.md`](IDEA.md) (tipped over, shaken) come in v2, after more testing.
 
 ### `POST /api/devices/{device_id}/arm` *(mobile)*
@@ -281,6 +283,27 @@ The alert values in the samples were computed with exactly the rule above, so ba
 - Integrated: arm the phone, pick it up, and the dashboard turns red within ~2 seconds (the phone stays black).
 
 ---
+
+## Delete my data
+With pairing, every request carries the phone's token (`Authorization: Bearer <device_token>`) and the paths are under `/api/me`
+(this contract still describes the paths before pairing; to be updated).
+
+### Arming needs a paired dashboard
+The dashboard is where the alarm shows up, so a phone without one can't be armed.
+- `POST /api/me/arm` answers `409` `{"detail": "Pair a dashboard first: it's where the alarm shows up."}` while no dashboard is paired.
+  The backend setting `REQUIRE_DASHBOARD_TO_ARM` (default `true`) turns the rule off, e.g. for tests.
+- `GET /api/me` (and `PATCH /api/me`) also return `paired_dashboards`: how many dashboards follow this phone.
+- The app shows **either** the pairing step **or** Arm: with no dashboard, only "Pair a dashboard first" and the code;
+  once one is paired, only Arm (more dashboards are added under Settings). While a code is showing, it checks every
+  few seconds whether a dashboard has used it.
+- Deleting the phone's data removes its dashboards too, so it has to be paired again before arming.
+
+### `DELETE /api/me` *(mobile)*
+Deletes the phone and **everything** stored about it: readings, the GPS trail, alerts, armed sessions, pairing codes and every
+paired dashboard's token. `204`, no body. Afterwards the phone's token and its dashboards' tokens get `401`, and the ID is free again.
+- Only the **phone's own token** can delete (`403` for a dashboard's read-only token, `401` without a token).
+- The app asks for confirmation, then forgets its ID and token and registers again as a new phone.
+- Other phones are never touched.
 
 ## Integration phases
 1. **Independent**: everyone works against the samples.

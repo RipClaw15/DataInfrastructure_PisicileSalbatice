@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 
-
 export type GeoPoint = {
   lat: number;
   lon: number;
-  
+  /** Radius in meters the phone is likely within; indoors often 10-50. */
   accuracy_m: number | null;
 };
 
@@ -16,7 +15,7 @@ export type LocationState =
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
-
+/** Live GPS position while the app is open, updated when it moves 10 m or more. Asks for permission once; arming works without it if denied. */
 export function useLocation(): LocationState {
   const [state, setState] = useState<LocationState>({ status: 'checking' });
 

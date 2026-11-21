@@ -7,10 +7,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alert } from './api';
 import type { GeoPoint } from './location';
 import { PinPad } from './PinPad';
-import { colors, stealth } from './theme';
+import { colors, fonts, stealth } from './theme';
 import type { AutoSendStats, GuardPhase } from './useGuard';
 
-
+/** The PIN pad hides again after this long without a key press. */
 const PAD_MS = 10_000;
 
 type Props = {
@@ -22,21 +22,20 @@ type Props = {
   settleSecondsLeft: number;
   isStill: boolean;
   alert: Alert | null;
-  
+  /** Stealth: a black screen that looks dead, the same before and after an alert. Off: the GUARDING / MOVED screens (development). */
   stealth: boolean;
   pin: string;
   onCancel: () => void;
-  
+  /** Called after the right PIN: the only way to disarm. */
   onDisarm: () => void;
 };
 
-
+/** Shown from tapping Arm until disarmed. Mounted only then, so the screen stays awake only while guarding. */
 export function GuardScreen(props: Props) {
   useKeepAwake();
   if (props.phase === 'settling' || props.phase === 'arming') return <ArmingDelay {...props} />;
   return props.stealth ? <Stealth {...props} /> : <Guarding {...props} />;
 }
-
 
 function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, onCancel }: Props) {
   const message =
@@ -61,7 +60,10 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, on
   );
 }
 
-
+/**
+ * Pitch black at minimum brightness from the moment it arms: on AMOLED the pixels are off, so the phone looks dead.
+ * Nothing shows whether it's guarding or has raised an alert. A tap shows only the PIN pad.
+ */
 function Stealth({ pin, onDisarm }: Props) {
   const [padUntil, setPadUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -86,7 +88,7 @@ function Stealth({ pin, onDisarm }: Props) {
   );
 }
 
-
+/** Development screen (stealth off): shows the state; Disarm still needs the PIN. */
 function Guarding({ phase, armedAt, stats, magnitude, location, alert, pin, onDisarm }: Props) {
   const elapsed = useElapsed(armedAt);
   const [askPin, setAskPin] = useState(false);
@@ -148,7 +150,7 @@ function formatLocation({ lat, lon, accuracy_m }: GeoPoint): string {
   return accuracy_m === null ? `${lat}, ${lon}` : `${lat}, ${lon} (±${accuracy_m} m)`;
 }
 
-
+/** Dims the screen while mounted and puts the previous brightness back afterwards (iOS keeps it otherwise). */
 function useMinimumBrightness() {
   useEffect(() => {
     let previous: number | null = null;
@@ -158,7 +160,7 @@ function useMinimumBrightness() {
         previous = await Brightness.getBrightnessAsync();
         if (!cancelled) await Brightness.setBrightnessAsync(0);
       } catch {
-        
+        // Not available: the black screen alone still looks dead on AMOLED.
       }
     })();
     return () => {
@@ -167,7 +169,6 @@ function useMinimumBrightness() {
     };
   }, []);
 }
-
 
 function useElapsed(since: string | null): string {
   const [now, setNow] = useState(Date.now());
@@ -189,23 +190,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page, padding: 24, paddingTop: 72, paddingBottom: 48 },
   stealth: { flex: 1, backgroundColor: stealth.black, alignItems: 'center', justifyContent: 'center', gap: 36 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { color: colors.ok, fontSize: 44, fontWeight: '800', letterSpacing: 4 },
+  title: { fontFamily: fonts.bold, color: colors.ok, fontSize: 44, letterSpacing: 2 },
   settling: { color: colors.accent, fontSize: 36 },
-  big: { color: colors.ink, fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
-  hint: { color: colors.muted, fontSize: 15, textAlign: 'center' },
-  
+  big: { fontFamily: fonts.regular, color: colors.ink, fontSize: 56, fontVariant: ['tabular-nums'] },
+  hint: { fontFamily: fonts.regular, color: colors.muted, fontSize: 16, textAlign: 'center' },
   alertScreen: { backgroundColor: colors.alertSoft },
   alertTitle: { color: colors.alert, fontSize: 56 },
   alertText: { color: colors.alert },
-  alertLocation: { color: colors.ink, fontSize: 17, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
+  alertLocation: { fontFamily: fonts.bold, color: colors.ink, fontSize: 17, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stats: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   stat: { alignItems: 'center', flex: 1 },
-  statValue: { color: colors.ink, fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  statValue: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 20, fontVariant: ['tabular-nums'] },
+  statLabel: { fontFamily: fonts.regular, color: colors.muted, fontSize: 13, marginTop: 2 },
   warn: { color: colors.warn },
-  error: { color: colors.warn, fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  error: { fontFamily: fonts.regular, color: colors.warn, fontSize: 14, textAlign: 'center', marginBottom: 12 },
   button: { borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
   secondaryButton: { borderWidth: 1, borderColor: colors.line },
-  secondaryText: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  secondaryText: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 18 },
   buttonPressed: { opacity: 0.6 },
 });

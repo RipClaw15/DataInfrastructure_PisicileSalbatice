@@ -5,7 +5,7 @@ import pytest
 from backend.app.detection import angle_deg, picked_up_angle
 
 
-@pytest.mark.parametrize("angle,expected", [(0, False), (14.9, False), (15, False), (15.1, True), (90, True), (180, True)])
+@pytest.mark.parametrize("angle,expected", [(0, False), (5.9, False), (5.99, False), (6.01, True), (6.1, True), (90, True), (180, True)])
 def test_threshold(angle, expected):
     reading = (math.sin(math.radians(angle)), 0, -math.cos(math.radians(angle)))
     assert (picked_up_angle((0, 0, -1), reading) is not None) is expected

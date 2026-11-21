@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
+  SchibstedGrotesk_400Regular,
+  SchibstedGrotesk_500Medium,
+  SchibstedGrotesk_600SemiBold,
+  SchibstedGrotesk_700Bold,
+  useFonts,
+} from '@expo-google-fonts/schibsted-grotesk';
+import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,7 +23,9 @@ import {
 import {
   API_URL,
   buildPayload,
+  deleteMyData,
   ensureRegistered,
+  getPairedDashboards,
   isMockMode,
   requestPairingCode,
   sendEvent,
@@ -29,7 +39,7 @@ import { useLocation, type LocationState } from './src/location';
 import { getPin, savePin } from './src/pin';
 import { PinPad } from './src/PinPad';
 import { useAccelerometer } from './src/sensor';
-import { colors } from './src/theme';
+import { colors, fonts } from './src/theme';
 import { useGuard, type SessionSummary } from './src/useGuard';
 
 type SendStatus =
@@ -39,16 +49,22 @@ type SendStatus =
   | { kind: 'sent'; id: number; stored: boolean }
   | { kind: 'failed'; reason: string };
 
-
+/** Setting the PIN: enter it, then enter it again. `thenArm` when it was started by tapping Arm. */
 type PinSetup = { step: 'enter' | 'confirm'; first?: string; mismatch?: boolean; thenArm: boolean };
 
 type PairingState =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ready'; data: PairingCodeResponse }
+  | { kind: 'ready'; data: PairingCodeResponse; before: number }
   | { kind: 'failed'; reason: string };
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    SchibstedGrotesk_400Regular,
+    SchibstedGrotesk_500Medium,
+    SchibstedGrotesk_600SemiBold,
+    SchibstedGrotesk_700Bold,
+  });
   const sensor = useAccelerometer();
   const gps = useLocation();
   const defaultName = Platform.OS === 'ios' ? 'iPhone' : 'Android Phone';
@@ -64,6 +80,11 @@ export default function App() {
   const [pairing, setPairing] = useState<PairingState>({ kind: 'idle' });
   const [lastPayload, setLastPayload] = useState<EventPayload | null>(null);
   const [simulateError, setSimulateError] = useState(false);
+  const [deleting, setDeleting] = useState<'idle' | 'deleting' | 'deleted' | string>('idle');
+  const [connection, setConnection] = useState<'checking' | 'ok' | 'offline'>('checking');
+  const [showDeveloper, setShowDeveloper] = useState(false);
+  /** How many dashboards follow this phone; null until known. Arming needs at least one. */
+  const [paired, setPaired] = useState<number | null>(isMockMode ? 1 : null);
 
   useEffect(() => {
     let active = true;
@@ -77,9 +98,12 @@ export default function App() {
       }
       // Silently register & heartbeat on launch so the dashboard shows Connected right away.
       ensureRegistered().then((res) => {
-        if (active && res.ok) {
+        if (!active) return;
+        setConnection(res.ok ? 'ok' : 'offline');
+        if (res.ok) {
           setDeviceId(res.data.deviceId);
           updateDeviceName(name);
+          refreshPaired();
         }
       });
     });
@@ -96,7 +120,21 @@ export default function App() {
   const guard = useGuard(deviceId, reading, location, simulateError);
   const busy = sendStatus.kind === 'sending' || sendStatus.kind === 'retrying';
   const canSend = reading !== null && deviceId !== null && !busy;
-  const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed';
+  const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed' && (paired ?? 0) > 0;
+
+  // While a code is showing, check every few seconds whether a dashboard has used it.
+  useEffect(() => {
+    if (pairing.kind !== 'ready') return;
+    const timer = setInterval(refreshPaired, 3000);
+    return () => clearInterval(timer);
+  }, [pairing.kind]);
+  useEffect(() => {
+    if (pairing.kind === 'ready' && paired !== null && paired > pairing.before) setPairing({ kind: 'idle' });
+  }, [paired, pairing]);
+  // Arming refused (e.g. the only dashboard was removed): check again what the server says.
+  useEffect(() => {
+    if (guard.error) refreshPaired();
+  }, [guard.error]);
 
   async function onSend() {
     if (!reading || !deviceId) return;
@@ -113,7 +151,7 @@ export default function App() {
     );
   }
 
-  
+  /** Arm needs a PIN, because the PIN is the only way to disarm. */
   function onArm() {
     if (pin) guard.arm();
     else setPinSetup({ step: 'enter', thenArm: true });
@@ -135,11 +173,47 @@ export default function App() {
     if (pinSetup.thenArm) guard.arm();
   }
 
+  /** Asks first: deleting can't be undone, and every paired dashboard loses access. */
+  function onDeleteMyData() {
+    Alert.alert(
+      'Delete my data?',
+      "This deletes everything stored about this phone: readings, locations, alerts and paired dashboards. It can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting('deleting');
+            const result = await deleteMyData();
+            if (!result.ok) {
+              setDeleting(result.reason);
+              return;
+            }
+            setPairing({ kind: 'idle' });
+            setPaired(isMockMode ? 1 : 0);
+            setLastPayload(null);
+            setDeleting('deleted');
+            // Start over as a new phone.
+            const fresh = await ensureRegistered();
+            setConnection(fresh.ok ? 'ok' : 'offline');
+            setDeviceId(fresh.ok ? fresh.data.deviceId : await getDeviceId());
+          },
+        },
+      ],
+    );
+  }
+
+  async function refreshPaired() {
+    const result = await getPairedDashboards();
+    if (result.ok) setPaired(result.data);
+  }
+
   async function onShowPairingCode() {
     setPairing({ kind: 'loading' });
     const result = await requestPairingCode({ retry: false });
     if (result.ok) {
-      setPairing({ kind: 'ready', data: result.data });
+      setPairing({ kind: 'ready', data: result.data, before: paired ?? 0 });
     } else {
       setPairing({ kind: 'failed', reason: result.reason });
     }
@@ -165,6 +239,48 @@ export default function App() {
       setNameStatus(result.reason);
     }
   }
+
+  /** The code to pair a dashboard, and the button for it. On the main screen before the first dashboard, in Settings after. */
+  function pairingBlock(idleLabel: string) {
+    return (
+      <View style={styles.card}>
+        {pairing.kind === 'ready' && (
+          <>
+            <Text style={styles.pairingCode}>
+              {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
+            </Text>
+            <Text style={[styles.small, styles.center]}>Enter this code on the dashboard. It works once, for 10 minutes.</Text>
+          </>
+        )}
+        {pairing.kind === 'failed' && <Text style={[styles.small, styles.statusFailed]}>Couldn't get a code: {pairing.reason}</Text>}
+        <Pressable
+          onPress={onShowPairingCode}
+          disabled={pairing.kind === 'loading' || deviceId === null}
+          style={({ pressed }) => [
+            styles.button,
+            pairing.kind === 'ready' ? styles.secondaryButton : styles.armButton,
+            (pairing.kind === 'loading' || deviceId === null) && styles.buttonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={pairing.kind === 'ready' ? styles.secondaryText : styles.armText}>
+            {pairing.kind === 'loading' ? 'Getting a code…' : pairing.kind === 'ready' ? 'New code' : idleLabel}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const connectionLook = isMockMode
+    ? { text: 'Demo mode', color: colors.warn }
+    : connection === 'ok'
+      ? { text: 'Connected', color: colors.ok }
+      : connection === 'offline'
+        ? { text: "Can't reach the server", color: colors.warn }
+        : { text: 'Connecting…', color: colors.muted };
+
+  // Wait for the typeface (a moment on first launch); without it, carry on with the system font.
+  if (!fontsLoaded && !fontError) return <View style={styles.screen} />;
 
   if (guard.phase !== 'disarmed' && pin) {
     return (
@@ -204,56 +320,94 @@ export default function App() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar style="light" />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <Text style={styles.title}>StayPut</Text>
-          <View style={[styles.badge, isMockMode ? styles.badgeMock : styles.badgeLive]}>
-            <Text style={isMockMode ? styles.badgeMockText : styles.badgeLiveText}>
-              {isMockMode ? 'MOCK MODE' : `LIVE: ${API_URL}`}
-            </Text>
+          <View style={styles.connection}>
+            <View style={[styles.dot, { backgroundColor: connectionLook.color }]} />
+            <Text style={[styles.connectionText, { color: connectionLook.color }]}>{connectionLook.text}</Text>
           </View>
         </View>
 
-        {/* Device identity + inline rename right at the top so the keyboard never covers it */}
-        <View style={styles.card}>
-          <View style={styles.deviceHeader}>
-            <View style={styles.deviceTitleWrap}>
-              <Text style={styles.label}>This phone</Text>
-              {!editingName && (
-                <Text style={styles.deviceNameText} numberOfLines={1}>
-                  {deviceName}
-                </Text>
-              )}
-              <Text style={styles.small}>
-                {deviceId ?? 'loading…'} · {Platform.OS}
-                {nameStatus === 'saved' ? ' · Saved ✓' : ''}
+        {guard.lastSession && <LastSession session={guard.lastSession} />}
+
+        {paired === 0 ? (
+          <>
+            <View style={styles.intro}>
+              <Text style={styles.headline}>Pair a dashboard first</Text>
+              <Text style={styles.body}>
+                The dashboard is where the alarm shows up. Show a code here and enter it on the dashboard; then you can arm.
               </Text>
             </View>
+            {pairingBlock('Show dashboard code')}
+          </>
+        ) : paired === null ? (
+          <View style={styles.intro}>
+            <Text style={styles.headline}>{connection === 'offline' ? "Can't reach the server" : 'Connecting…'}</Text>
+            <Text style={styles.body}>
+              {connection === 'offline' ? 'Check the connection, then reopen the app.' : 'One moment.'}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.intro}>
+              <Text style={styles.headline}>{reading ? 'Ready to guard' : 'Waiting for the motion sensor…'}</Text>
+              <Text style={styles.body}>
+                Picking it up, tilting it or carrying it off sets off the alarm. Writing or typing at the same table doesn't.
+              </Text>
+            </View>
+            <Pressable
+              onPress={onArm}
+              disabled={!canArm}
+              style={({ pressed }) => [styles.button, styles.armButton, !canArm && styles.buttonDisabled, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.armText}>Arm</Text>
+            </Pressable>
+            <Text style={[styles.small, styles.center]}>Put it down and step back. To disarm, tap the black screen and enter your PIN.</Text>
+            {guard.error && <Text style={[styles.status, styles.statusFailed]}>{guard.error}</Text>}
+          </>
+        )}
 
+        <Text style={styles.section}>Settings</Text>
+        <View style={[styles.card, styles.list]}>
+          {(paired ?? 0) > 0 && (
+            <View style={styles.listRow}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>Dashboards</Text>
+                <Text style={styles.small}>{paired === 1 ? '1 paired' : `${paired} paired`}</Text>
+              </View>
+              {pairing.kind === 'idle' && (
+                <Pressable onPress={onShowPairingCode} style={({ pressed }) => [styles.rowAction, pressed && styles.buttonPressed]}>
+                  <Text style={styles.linkText}>Add</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+          {(paired ?? 0) > 0 && pairing.kind !== 'idle' && <View style={styles.renameBox}>{pairingBlock('Show dashboard code')}</View>}
+          <View style={styles.listRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Name</Text>
+              {!editingName && (
+                <Text style={styles.small} numberOfLines={1}>
+                  {deviceName}
+                  {nameStatus === 'saved' ? ' · saved' : ''}
+                </Text>
+              )}
+            </View>
             {!editingName && (
-              <Pressable
-                onPress={startRenaming}
-                style={({ pressed }) => [styles.renamePill, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.renamePillText}>Rename</Text>
+              <Pressable onPress={startRenaming} style={({ pressed }) => [styles.rowAction, pressed && styles.buttonPressed]}>
+                <Text style={styles.linkText}>Rename</Text>
               </Pressable>
             )}
           </View>
-
           {editingName && (
             <View style={styles.renameBox}>
               <TextInput
                 value={draftName}
                 onChangeText={setDraftName}
-                placeholder="Enter phone name"
+                placeholder="Phone name"
                 placeholderTextColor={colors.muted}
                 maxLength={64}
                 autoFocus
@@ -275,136 +429,100 @@ export default function App() {
                 <Pressable
                   onPress={onSaveDeviceName}
                   disabled={nameStatus === 'saving'}
-                  style={({ pressed }) => [
-                    styles.saveButton,
-                    nameStatus === 'saving' && styles.buttonDisabled,
-                    pressed && styles.buttonPressed,
-                  ]}
+                  style={({ pressed }) => [styles.saveButton, nameStatus === 'saving' && styles.buttonDisabled, pressed && styles.buttonPressed]}
                 >
-                  <Text style={styles.saveButtonText}>
-                    {nameStatus === 'saving' ? 'Saving…' : 'Save name'}
-                  </Text>
+                  <Text style={styles.saveButtonText}>{nameStatus === 'saving' ? 'Saving…' : 'Save'}</Text>
                 </Pressable>
               </View>
               {nameStatus !== 'idle' && nameStatus !== 'saving' && nameStatus !== 'saved' && (
-                <Text style={[styles.small, styles.statusFailed]}>Failed: {nameStatus}</Text>
+                <Text style={[styles.small, styles.statusFailed]}>Not saved: {nameStatus}</Text>
               )}
             </View>
           )}
-        </View>
 
-        {guard.lastSession && <LastSession session={guard.lastSession} />}
-
-        <Pressable
-          onPress={onArm}
-          disabled={!canArm}
-          style={({ pressed }) => [styles.button, styles.armButton, !canArm && styles.buttonDisabled, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.armText}>Arm</Text>
-        </Pressable>
-        <Text style={styles.small}>
-          Put it on your stuff and step back. It goes black once it lies still. Tap + PIN to disarm.
-        </Text>
-        {guard.error && <Text style={[styles.status, styles.statusFailed]}>{guard.error}</Text>}
-
-        <View style={styles.row}>
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>Stealth</Text>
-            <Text style={styles.small}>Black screen while armed. Turn off to see GUARDING / MOVED while testing.</Text>
+          <View style={styles.listRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Disarm PIN</Text>
+              <Text style={styles.small}>{pin ? 'Set. It stays on this phone.' : 'Asked for when you first arm.'}</Text>
+            </View>
+            <Pressable
+              onPress={() => setPinSetup({ step: 'enter', thenArm: false })}
+              style={({ pressed }) => [styles.rowAction, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.linkText}>{pin ? 'Change' : 'Set'}</Text>
+            </Pressable>
           </View>
-          <Switch value={stealth} onValueChange={setStealth} trackColor={{ true: colors.accent, false: colors.line }} />
-        </View>
-        {pin && (
-          <Pressable onPress={() => setPinSetup({ step: 'enter', thenArm: false })} style={({ pressed }) => [styles.link, pressed && styles.buttonPressed]}>
-            <Text style={styles.linkText}>Change PIN</Text>
-          </Pressable>
-        )}
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Dashboard pairing</Text>
-          {pairing.kind === 'ready' ? (
-            <>
-              <Text style={styles.pairingCode}>
-                {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
-              </Text>
+          <View style={styles.listRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Stealth</Text>
+              <Text style={styles.small}>Black screen while guarding, so the phone looks switched off.</Text>
+            </View>
+            <Switch value={stealth} onValueChange={setStealth} trackColor={{ true: colors.accent, false: colors.line }} />
+          </View>
+
+          <View style={[styles.listRow, styles.lastRow]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, styles.dangerText]}>Delete my data</Text>
               <Text style={styles.small}>
-                Enter this 6-digit code in the web dashboard. Single-use, valid for 10 min.
+                {deleting === 'deleted'
+                  ? 'Deleted. This phone starts over as a new one.'
+                  : deleting !== 'idle' && deleting !== 'deleting'
+                    ? `Not deleted: ${deleting}`
+                    : 'Everything stored about this phone, and its dashboards.'}
               </Text>
-            </>
-          ) : (
-            <Text style={styles.small}>
-              Generate a one-time 6-digit code to view this phone’s alerts on the web dashboard.
-            </Text>
-          )}
-          {pairing.kind === 'failed' && (
-            <Text style={[styles.small, styles.statusFailed]}>Failed: {pairing.reason}</Text>
-          )}
-          <Pressable
-            onPress={onShowPairingCode}
-            disabled={pairing.kind === 'loading' || deviceId === null}
-            style={({ pressed }) => [
-              styles.button,
-              styles.secondaryButton,
-              styles.pairButton,
-              (pairing.kind === 'loading' || deviceId === null) && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.secondaryText}>
-              {pairing.kind === 'loading'
-                ? 'Generating code…'
-                : pairing.kind === 'ready'
-                  ? 'Generate new code'
-                  : 'Show dashboard code'}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Accelerometer</Text>
-          <Text style={styles.small}>{sensorLabel(sensor.status)}</Text>
-          <View style={styles.axes}>
-            <Axis name="x" value={reading?.x} />
-            <Axis name="y" value={reading?.y} />
-            <Axis name="z" value={reading?.z} />
+            </View>
+            <Pressable
+              onPress={onDeleteMyData}
+              disabled={guard.phase !== 'disarmed' || deleting === 'deleting'}
+              style={({ pressed }) => [styles.rowAction, (pressed || deleting === 'deleting') && styles.buttonPressed]}
+            >
+              <Text style={[styles.linkText, styles.dangerText]}>{deleting === 'deleting' ? 'Deleting…' : 'Delete'}</Text>
+            </Pressable>
           </View>
-          <Text style={styles.magnitude}>{reading ? reading.magnitude.toFixed(3) : '-.---'} g</Text>
-          <Text style={styles.small}>magnitude (≈ 1.000 when lying still)</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Location</Text>
-          <Text style={styles.mono}>{location ? `${location.lat}, ${location.lon}` : '-'}</Text>
-          <Text style={styles.small}>{locationLabel(gps)}</Text>
-        </View>
-
-        <Pressable
-          onPress={onSend}
-          disabled={!canSend}
-          style={({ pressed }) => [styles.button, styles.secondaryButton, !canSend && styles.buttonDisabled, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.secondaryText}>{busy ? 'Sending…' : 'Send reading'}</Text>
+        <Pressable onPress={() => setShowDeveloper((v) => !v)} style={({ pressed }) => [styles.disclosure, pressed && styles.buttonPressed]}>
+          <Text style={styles.section}>Developer</Text>
+          <Text style={styles.chevron}>{showDeveloper ? '−' : '+'}</Text>
         </Pressable>
-        <Text style={[styles.status, sendStatus.kind === 'failed' && styles.statusFailed]}>{statusLabel(sendStatus)}</Text>
-
-        {isMockMode && (
-          <View style={styles.row}>
-            <Text style={styles.small}>Simulate server error</Text>
-            <Switch value={simulateError} onValueChange={setSimulateError} trackColor={{ true: colors.warn, false: colors.line }} />
-          </View>
-        )}
-
-        {lastPayload && (
+        {showDeveloper && (
           <View style={styles.card}>
-            <Text style={styles.label}>Last payload</Text>
-            <Text style={styles.mono}>{JSON.stringify(lastPayload, null, 2)}</Text>
+            <Text style={styles.small}>
+              {deviceId ?? 'loading…'} · {Platform.OS} · {isMockMode ? 'mock mode, no server' : API_URL}
+            </Text>
+            <Text style={styles.small}>Accelerometer: {sensorLabel(sensor.status)}</Text>
+            <View style={styles.axes}>
+              <Axis name="x" value={reading?.x} />
+              <Axis name="y" value={reading?.y} />
+              <Axis name="z" value={reading?.z} />
+              <Axis name="|a| g" value={reading?.magnitude} />
+            </View>
+            <Text style={styles.small}>
+              Location: {location ? `${location.lat}, ${location.lon}. ` : ''}
+              {locationLabel(gps)}
+            </Text>
+            <Pressable
+              onPress={onSend}
+              disabled={!canSend}
+              style={({ pressed }) => [styles.button, styles.secondaryButton, !canSend && styles.buttonDisabled, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.secondaryText}>{busy ? 'Sending…' : 'Send reading'}</Text>
+            </Pressable>
+            <Text style={[styles.small, styles.center, sendStatus.kind === 'failed' && styles.statusFailed]}>{statusLabel(sendStatus)}</Text>
+            {isMockMode && (
+              <View style={styles.listRow}>
+                <Text style={styles.small}>Simulate server error</Text>
+                <Switch value={simulateError} onValueChange={setSimulateError} trackColor={{ true: colors.warn, false: colors.line }} />
+              </View>
+            )}
+            {lastPayload && <Text style={styles.mono}>{JSON.stringify(lastPayload, null, 2)}</Text>}
           </View>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
 
 function LastSession({ session }: { session: SessionSummary }) {
   const since = new Date(session.armedAt).toLocaleTimeString();
@@ -471,88 +589,78 @@ function statusLabel(status: SendStatus): string {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.page },
   pinScreen: { alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 },
-  content: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 14 },
+  content: { padding: 20, paddingTop: 64, paddingBottom: 48, gap: 14 },
   center: { textAlign: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontSize: 28, fontWeight: '700', color: colors.ink, letterSpacing: -0.5 },
-  badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
-  badgeMock: { backgroundColor: colors.warnSoft, borderColor: colors.warn },
-  badgeLive: { backgroundColor: colors.okSoft, borderColor: colors.ok },
-  badgeMockText: { fontSize: 12, fontWeight: '700', color: colors.warn },
-  badgeLiveText: { fontSize: 12, fontWeight: '700', color: colors.ok },
-  card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 16, gap: 6 },
-  
+  title: { fontFamily: fonts.bold, fontSize: 30, color: colors.ink, letterSpacing: -0.8 },
+  connection: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  connectionText: { fontFamily: fonts.medium, fontSize: 14 },
+  card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line, padding: 16, gap: 10 },
   alertCard: { backgroundColor: colors.alertSoft, borderColor: colors.alert },
   alertText: { color: colors.alert },
-  sessionText: { fontSize: 17, fontWeight: '600', color: colors.ink },
-  label: { fontSize: 13, fontWeight: '600', color: colors.muted, textTransform: 'uppercase' },
-  small: { fontSize: 13, color: colors.muted },
-  deviceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  deviceTitleWrap: { flex: 1, gap: 2 },
-  deviceNameText: { fontSize: 20, fontWeight: '700', color: colors.ink },
-  renamePill: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.page,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+  sessionText: { fontFamily: fonts.semibold, fontSize: 17, color: colors.ink },
+  label: { fontFamily: fonts.medium, fontSize: 14, color: colors.muted },
+  section: { fontFamily: fonts.semibold, fontSize: 16, color: colors.muted, marginTop: 10 },
+  body: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 22, color: colors.ink },
+  small: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 19, color: colors.muted },
+  intro: { gap: 8, marginTop: 12, marginBottom: 4 },
+  headline: { fontFamily: fonts.bold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
+  list: { paddingVertical: 4, gap: 0 },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
   },
-  renamePillText: { fontSize: 13, fontWeight: '600', color: colors.accent },
-  renameBox: { marginTop: 8, gap: 10 },
+  lastRow: { borderBottomWidth: 0 },
+  rowText: { flex: 1, gap: 2 },
+  rowLabel: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
+  rowAction: { paddingVertical: 6, paddingLeft: 12 },
+  renameBox: { paddingBottom: 12, gap: 10 },
   nameInput: {
     borderWidth: 1,
     borderColor: colors.accent,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 11,
+    fontFamily: fonts.regular,
     fontSize: 16,
     color: colors.ink,
     backgroundColor: colors.page,
   },
   renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  cancelButton: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  cancelButtonText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
-  saveButton: {
-    backgroundColor: colors.accent,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-  },
-  saveButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: '700' },
+  cancelButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
+  cancelButtonText: { fontFamily: fonts.semibold, color: colors.muted, fontSize: 14 },
+  saveButton: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9 },
+  saveButtonText: { fontFamily: fonts.bold, color: colors.onAccent, fontSize: 14 },
   pairingCode: {
+    fontFamily: fonts.bold,
     fontSize: 40,
-    fontWeight: '700',
     letterSpacing: 6,
     textAlign: 'center',
     color: colors.accent,
-    marginVertical: 6,
     fontVariant: ['tabular-nums'],
   },
-  pairButton: { marginTop: 6 },
-  axes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  disclosure: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  chevron: { fontFamily: fonts.medium, fontSize: 20, color: colors.muted },
+  axes: { flexDirection: 'row', justifyContent: 'space-between' },
   axis: { alignItems: 'center', flex: 1 },
-  axisValue: { fontSize: 22, fontVariant: ['tabular-nums'], fontWeight: '600', color: colors.ink },
-  magnitude: { fontSize: 44, fontWeight: '700', textAlign: 'center', marginTop: 8, fontVariant: ['tabular-nums'], color: colors.ink },
-  mono: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 13, color: colors.ink },
-  button: { borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  armButton: { backgroundColor: colors.accent },
-  armText: { color: colors.onAccent, fontSize: 18, fontWeight: '700' },
-  secondaryButton: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card },
-  secondaryText: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  axisValue: { fontFamily: fonts.semibold, fontSize: 18, fontVariant: ['tabular-nums'], color: colors.ink },
+  mono: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 12, color: colors.muted },
+  button: { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  armButton: { backgroundColor: colors.accent, paddingVertical: 20 },
+  armText: { fontFamily: fonts.bold, color: colors.onAccent, fontSize: 20 },
+  secondaryButton: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.page },
+  secondaryText: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 16 },
   buttonDisabled: { opacity: 0.4 },
   buttonPressed: { opacity: 0.7 },
   link: { alignSelf: 'center', padding: 8 },
-  linkText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
-  status: { fontSize: 16, textAlign: 'center', color: colors.ink },
+  linkText: { fontFamily: fonts.semibold, color: colors.accent, fontSize: 15 },
+  dangerText: { color: colors.alert },
+  status: { fontFamily: fonts.regular, fontSize: 15, textAlign: 'center', color: colors.ink },
   statusFailed: { color: colors.warn },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  rowText: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 16, fontWeight: '600', color: colors.ink },
 });

@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     pairing_code_ttl_minutes: int = 10
     pair_rate_limit_max_failures: int = 5
     pair_rate_limit_window_seconds: int = 60
+    # The dashboard is where an alarm shows up, so a phone can only be armed once one is paired.
+    require_dashboard_to_arm: bool = True
 
 
 settings = Settings()

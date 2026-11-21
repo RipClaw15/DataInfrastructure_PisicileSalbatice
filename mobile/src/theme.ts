@@ -1,3 +1,7 @@
+/**
+ * StayPut colours, the same tokens as the dashboard (codelap-dashboard/src/index.css).
+ * Dark only, "night watch": ink-blue backgrounds around the sky aqua accent; the alarm red is the only warm colour.
+ */
 export const colors = {
   page: '#0c1620',
   card: '#13212d',
@@ -14,4 +18,16 @@ export const colors = {
   alertSoft: '#312029',
 };
 
+/**
+ * The dashboard's typeface, Schibsted Grotesk, loaded in App.tsx. With a custom font, set the weight through the
+ * family (not fontWeight), or Android falls back to the system font.
+ */
+export const fonts = {
+  regular: 'SchibstedGrotesk_400Regular',
+  medium: 'SchibstedGrotesk_500Medium',
+  semibold: 'SchibstedGrotesk_600SemiBold',
+  bold: 'SchibstedGrotesk_700Bold',
+};
+
+/** The stealth screen: black pixels are off on AMOLED, so the phone looks dead. */
 export const stealth = { black: '#000000', pin: '#FFFFFF' };
