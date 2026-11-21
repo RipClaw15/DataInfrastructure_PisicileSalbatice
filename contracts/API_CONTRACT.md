@@ -292,9 +292,12 @@ With pairing, every request carries the phone's token (`Authorization: Bearer <d
 The dashboard is where the alarm shows up, so a phone without one can't be armed.
 - `POST /api/me/arm` answers `409` `{"detail": "Pair a dashboard first: it's where the alarm shows up."}` while no dashboard is paired.
   The backend setting `REQUIRE_DASHBOARD_TO_ARM` (default `true`) turns the rule off, e.g. for tests.
-- `GET /api/me` (and `PATCH /api/me`) also return `paired_dashboards`: how many dashboards follow this phone.
+- **One dashboard per phone:** a phone has one dashboard session that sees only its data. Pairing a new dashboard replaces the old one,
+  whose token then gets `401` (it lands on the pairing screen).
+- `GET /api/me` (and `PATCH /api/me`) also return `paired_dashboards` (0 or 1) and `dashboard_paired_at` (when the current one was paired;
+  it changes when a new dashboard replaces it).
 - The app shows **either** the pairing step **or** Arm: with no dashboard, only "Pair a dashboard first" and the code;
-  once one is paired, only Arm (more dashboards are added under Settings). While a code is showing, it checks every
+  once one is paired, only Arm (Settings → Dashboard → Replace pairs a different one). While a code is showing, it checks every
   few seconds whether a dashboard has used it.
 - Deleting the phone's data removes its dashboards too, so it has to be paired again before arming.
 
