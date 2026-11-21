@@ -6,7 +6,7 @@ export type Reading = {
   y: number;
   z: number;
   magnitude: number;
-  /** UTC ISO 8601, e.g. 2026-11-20T18:45:00Z */
+  
   takenAt: string;
 };
 
@@ -23,7 +23,7 @@ export function utcNow(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-/** Live accelerometer values in g (gravity included), about 10 per second. */
+
 export function useAccelerometer(): SensorState {
   const [state, setState] = useState<SensorState>({ status: 'checking' });
 

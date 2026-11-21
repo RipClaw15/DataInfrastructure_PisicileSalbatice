@@ -1,5 +1,4 @@
-/* StayPut landing page. Colours come from the shared palette in index.css.
-   Element styles are scoped with :where(.sp-root): they never reach the dashboard, and keep their original specificity. */
+
 
 html:has(.sp-root) {
   scroll-behavior: smooth;

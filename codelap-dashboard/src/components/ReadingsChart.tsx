@@ -42,7 +42,7 @@ const axisTick = { fontSize: 12, fill: 'var(--muted)' }
 export default function ReadingsChart({ events, armedAt, alerts }: ReadingsChartProps) {
     const [showAxes, setShowAxes] = useState(false)
 
-    // API is newest-first, chart wants oldest -> newest
+    
     const data = useMemo(
         () =>
             [...events].reverse().map((e) => ({

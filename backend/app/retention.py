@@ -72,6 +72,6 @@ def should_save_gps(db: Session, session: ArmSession, event: Event, location: Lo
     if (as_utc(event.received_at) - as_utc(saved.received_at)).total_seconds() < settings.alert_gps_interval_seconds:
         return False
     rest = Location(lat=fix.lat, lon=fix.lon, accuracy_m=fix.accuracy_m)
-    # Avoid retaining small movements that are within either fix's uncertainty.
+    
     threshold = max(settings.alert_gps_distance_meters, rest.accuracy_m or 0, location.accuracy_m or 0)
     return distance_meters(rest, location) >= threshold

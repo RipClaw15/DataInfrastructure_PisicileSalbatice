@@ -50,7 +50,7 @@ def test_demo_session_matches_contract(client):
     assert client.get(f"{BASE}/alerts").json() == sample("alerts.json")
     assert client.post(f"{BASE}/disarm").json() == sample("status_disarmed.json")
     assert client.post(f"{BASE}/disarm").json() == sample("status_disarmed.json")
-    # Alert history survives disarming.
+    
     assert client.get(f"{BASE}/alerts").json() == sample("alerts.json")
 
 
@@ -177,8 +177,8 @@ def test_new_client_reads_persisted_guard_state(client):
     client.post(f"{BASE}/arm", json=sample("arm_request.json"))
     send(client, (0, 1, 0))
     live_telemetry.clear()
-    # A different client/session must obtain state from the database.
-    # Do not run application lifespan: it uses the production configuration.
+    
+    
     restarted = TestClient(app)
     try:
         assert restarted.get(f"{BASE}/status").json()["state"] == "ALERT"

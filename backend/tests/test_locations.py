@@ -17,13 +17,13 @@ MOVED = {"lat": 46.78, "lon": 23.60, "accuracy_m": None}
 def test_startup_adds_gps_tables_without_losing_readings(client, engine, payload, monkeypatch):
     client.post(f"{BASE}/arm", json=ARM)
     created = client.get("/api/events").json()["events"][0]
-    # Simulate the existing deployed database before GPS tables were added.
+    
     EventLocation.__table__.drop(engine)
     SessionLocation.__table__.drop(engine)
     main = importlib.import_module("backend.app.main")
     monkeypatch.setattr(main, "get_engine", lambda: engine)
     monkeypatch.setattr(main.settings, "database_url", "configured-for-test")
-    # The overridden engine and fixture dependency keep this in memory.
+    
     with TestClient(app) as restarted:
         events = restarted.get("/api/events").json()["events"]
         assert events[0]["id"] == created["id"]
@@ -43,7 +43,7 @@ def test_arm_location_persists_and_resets_on_rearm(client, engine):
         assert saved.lon == REST["lon"]
         assert saved.accuracy_m == REST["accuracy_m"]
     assert "location" not in client.post(f"{BASE}/disarm").json()
-    # A new session must not inherit the old session's resting GPS fix.
+    
     assert "location" not in client.post(f"{BASE}/arm", json=ARM).json()
     assert "location" not in client.get(f"{BASE}/status").json()
 

@@ -8,7 +8,7 @@ type OverviewCardsProps = {
     status: DeviceStatus | null
 }
 
-/** Two plain answers in one strip: is the phone connected, and how long has it been guarding. What happened is in Activity. */
+
 export default function OverviewCards({ status }: OverviewCardsProps) {
     const now = useNow()
     if (!status) return null

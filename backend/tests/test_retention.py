@@ -90,16 +90,16 @@ def gps_send(client, payload, clock, location, axes=MOVED, timestamp=None):
 
 def test_gps_trail_requires_elapsed_time_and_distance(client, engine, payload, clock):
     arm(client)
-    assert gps_send(client, payload, clock, FIX)["stored"] is True  # alert
+    assert gps_send(client, payload, clock, FIX)["stored"] is True  
     clock[0] += timedelta(seconds=1)
     far = {**FIX, "lat": 46.78}
     assert gps_send(client, payload, clock, far)["stored"] is False
-    assert client.get(f"{BASE}/status").json()["last_location"] == far  # live, unsaved
+    assert client.get(f"{BASE}/status").json()["last_location"] == far  
     clock[0] += timedelta(seconds=29)
     assert gps_send(client, payload, clock, far)["stored"] is True
-    assert count(engine, Event) == 3  # arm, alert, one GPS update
+    assert count(engine, Event) == 3  
     clock[0] += timedelta(seconds=31)
-    assert gps_send(client, payload, clock, far)["stored"] is False  # stationary
+    assert gps_send(client, payload, clock, far)["stored"] is False  
     noisy = {**far, "lat": 46.78001}
     assert gps_send(client, payload, clock, noisy)["stored"] is False
     inaccurate = {**far, "lat": 46.781, "accuracy_m": 500}

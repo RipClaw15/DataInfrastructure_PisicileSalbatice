@@ -22,7 +22,7 @@ def arm(device_id: DeviceId, payload: ArmRequest, db: Database):
     if previous:
         previous.disarmed_at = utc_now()
         save_session_snapshot(db, previous, "disarmed", previous.disarmed_at)
-        # Close the previous session before inserting, satisfying the unique index.
+        
         db.flush()
     session = ArmSession(
         device_id=device_id, armed_at=payload.timestamp,

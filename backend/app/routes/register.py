@@ -31,13 +31,13 @@ def register_device(
         db.commit()
     except IntegrityError:
         db.rollback()
-        # A concurrent registration may have claimed the same ID.
+        
         if db.get(Device, payload.device_id) is not None:
             raise HTTPException(status_code=409, detail="Device already registered") from None
         raise
 
     db.refresh(device)
-    # Return the raw token once; it is never persisted in the database.
+    
     return RegisterResponse(
         device_id=device.device_id,
         device_token=token,

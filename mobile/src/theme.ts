@@ -1,7 +1,3 @@
-/**
- * StayPut colours, the same tokens as the dashboard (codelap-dashboard/src/index.css).
- * Dark only, "night watch": ink-blue backgrounds around the sky aqua accent; the alarm red is the only warm colour.
- */
 export const colors = {
   page: '#0c1620',
   card: '#13212d',
@@ -9,7 +5,6 @@ export const colors = {
   ink: '#e8f1f5',
   muted: '#8aa3b3',
   accent: '#54c3ea',
-  /** Text on the sky aqua accent. */
   onAccent: '#0c1620',
   ok: '#54c3ea',
   okSoft: '#162e3c',
@@ -19,5 +14,4 @@ export const colors = {
   alertSoft: '#312029',
 };
 
-/** The stealth screen: black pixels are off on AMOLED, so the phone looks dead; the PIN pad is barely visible. */
 export const stealth = { black: '#000000', pin: '#FFFFFF' };

@@ -21,17 +21,17 @@ class Device(Base):
         ),
     )
 
-    # No ID default yet: existing mobile clients already generate phone IDs.
+    
     device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     device_name: Mapped[str | None] = mapped_column(String(64))
 
-    # SHA-256 hex digest only. Never store the raw device token here.
+    
     device_token_hash: Mapped[str] = mapped_column(String(64), unique=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    # Timestamp of the newest sensor reading; None until the first reading.
+    
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -66,7 +66,7 @@ class ArmSession(Base):
     disarmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-# A phone can have many historical sessions, but only one open session.
+
 Index(
     "uq_arm_sessions_open_device", ArmSession.device_id, unique=True,
     postgresql_where=ArmSession.disarmed_at.is_(None),
@@ -79,7 +79,7 @@ class Alert(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     device_id: Mapped[str] = mapped_column(String(64))
-    # Database constraint also enforces one alert per session.
+    
     session_id: Mapped[int] = mapped_column(ForeignKey("arm_sessions.id"), unique=True)
     type: Mapped[str] = mapped_column(String(32), default="picked_up")
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))

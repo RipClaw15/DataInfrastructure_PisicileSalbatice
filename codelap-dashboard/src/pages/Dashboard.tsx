@@ -22,9 +22,9 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
     const deviceId = readings?.[0]?.device_id ?? null
     const hasDevice = deviceId !== null
 
-    // Poll fast while armed so the alert shows up within ~1 s
+    
     const status = usePolling(
-        () => getStatus(deviceId!), // only runs when hasDevice
+        () => getStatus(deviceId!), 
         (s) => (isArmed(s) ? ACTIVE_POLL_SECONDS : POLL_SECONDS),
         onUnpair,
         hasDevice,
@@ -37,7 +37,7 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
         hasDevice,
     )
 
-    // The phone's newest reading, for the 3D phone; only while armed, when the phone is sending.
+    
     const live = usePolling(() => getLive(deviceId!), ACTIVE_POLL_SECONDS, onUnpair, hasDevice && armed)
     const rest = restingAxes(status.data, readings)
     const current = armed ? live.data?.axes ?? status.data?.last_alert?.axes ?? null : null
@@ -49,10 +49,10 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
     const shownLocation =
         statusData?.state === 'ALERT' && liveLocation
             ? { location: liveLocation, label: 'Where your phone is now', alert: true }
-            // While guarding, and in the first moments of an alert before the phone's first live location arrives.
+            
             : statusData?.state !== 'DISARMED' && armedLocation
                 ? { location: armedLocation, label: 'Where you left your phone', alert: false }
-                // Not guarding: the last place the phone reported, e.g. from the last alert.
+                
                 : statusData?.state === 'DISARMED' && liveLocation
                     ? { location: liveLocation, label: 'Last known location', alert: false }
                     : { location: null, label: 'No location yet', alert: false }

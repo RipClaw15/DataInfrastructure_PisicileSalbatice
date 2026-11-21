@@ -1,8 +1,8 @@
 import {DemoTelemetrySource} from './telemetry.js';
 import {renderChart} from './charts.js';
 
-// Replace this one source with an authenticated API/WebSocket adapter later.
-// UI rendering remains independent from how snapshots are produced.
+
+
 const source=new DemoTelemetrySource();
 const $=id=>document.getElementById(id);
 let map=null, selectedId=null, latest=null;

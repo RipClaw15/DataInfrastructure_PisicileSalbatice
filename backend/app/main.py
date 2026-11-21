@@ -37,7 +37,7 @@ async def lifespan(app):
 app = FastAPI(title="StayPut API", version="0.1.0", lifespan=lifespan)
 @app.middleware("http")
 async def request_timing(request, call_next):
-    # Generate IDs ourselves: never log untrusted header content.
+    
     token = request_id.set(uuid4().hex)
     started = perf_counter()
     record("request_start", method=request.method)
@@ -70,7 +70,7 @@ app.include_router(events_router)
 app.include_router(guard_router)
 
 LANDING_PAGE = Path(__file__).resolve().parent / "index.html"
-# Docker packages the React app here; local builds remain in the Vite project.
+
 DASHBOARD_DIR = LANDING_PAGE.parent / "dashboard_dist"
 if not DASHBOARD_DIR.is_dir():
     DASHBOARD_DIR = LANDING_PAGE.parents[2] / "codelap-dashboard" / "dist"
@@ -119,7 +119,7 @@ def ready():
         with get_engine().connect() as connection:
             connection.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        # Do not expose connection details or credentials in the response.
+        
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "database": "unavailable"},

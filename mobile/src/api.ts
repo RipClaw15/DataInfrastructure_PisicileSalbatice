@@ -1,7 +1,6 @@
 import type { GeoPoint } from './location';
 import { utcNow, type Reading } from './sensor';
 
-/** Empty → mock mode (no network calls). Read at bundle time; restart Expo after changing .env. */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 export const isMockMode = API_URL === '';
 
@@ -10,7 +9,6 @@ const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 type Axes = { x: number; y: number; z: number };
 
-/** Body of POST /api/events (contracts/mobile/post_event_request.json). */
 export type EventPayload = {
   device_id: string;
   event_type: 'accelerometer';
@@ -18,20 +16,16 @@ export type EventPayload = {
   unit: 'g';
   timestamp: string;
   axes: Axes;
-  /** Optional live location: sent by Send reading (debugging) and by auto-send while in ALERT. */
   location?: GeoPoint;
 };
 
-/** 201 response (contracts/mobile/post_event_response.json). */
 export type EventResponse = {
   id: number;
   device_id: string;
   received_at: string;
-  /** false (with id 0): checked but not kept; the backend keeps only state changes. Missing on older servers. */
   stored?: boolean;
 };
 
-/** An alert raised by the server (contracts/frontend/alerts.json). */
 export type Alert = {
   id: number;
   type: string;
@@ -39,7 +33,6 @@ export type Alert = {
   angle_deg: number;
 };
 
-/** Response of arm/disarm/status (contracts/mobile/status_guarding.json, status_disarmed.json). */
 export type DeviceStatus = {
   device_id: string;
   state: 'DISARMED' | 'GUARDING' | 'ALERT';
@@ -52,9 +45,7 @@ export type DeviceStatus = {
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; reason: string };
 
 type RequestOptions = {
-  /** Mock mode only: fail with a server error to exercise retries. */
   simulateError?: boolean;
-  /** Retry 5xx/network failures (1 s, 2 s, 4 s). Off for auto-send, where the next reading follows anyway. */
   retry?: boolean;
   onRetry?: (attempt: number, of: number) => void;
 };
@@ -71,7 +62,6 @@ export function buildPayload(deviceId: string, reading: Reading, location: GeoPo
   };
 }
 
-/** Thrown for failures worth retrying (5xx, timeout, no network). */
 class RetryableError extends Error {}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -100,11 +90,6 @@ async function postOnce<T>(path: string, body: unknown, okStatus: number): Promi
   throw new Error(`unexpected response ${res.status}`);
 }
 
-/**
- * POSTs to the API, or returns `mock()` after a short delay in mock mode.
- * Retries 5xx/network failures up to 3 times (1 s, 2 s, 4 s) unless `retry` is false;
- * anything else (e.g. 422) fails immediately.
- */
 async function post<T>(path: string, body: unknown, okStatus: number, mock: () => T, options: RequestOptions): Promise<ApiResult<T>> {
   const maxRetries = options.retry === false ? 0 : RETRY_DELAYS_MS.length;
   for (let attempt = 0; ; attempt++) {
@@ -128,15 +113,10 @@ async function post<T>(path: string, body: unknown, okStatus: number, mock: () =
 
 let mockId = 1000;
 
-/** POST /api/events: one reading. */
 export function sendEvent(payload: EventPayload, options: RequestOptions = {}): Promise<ApiResult<EventResponse>> {
   return post('/api/events', payload, 201, () => ({ id: ++mockId, device_id: payload.device_id, received_at: utcNow(), stored: true }), options);
 }
 
-/**
- * POST /api/devices/{id}/arm: starts guarding; the reading is the resting position.
- * `location` (optional) is where the phone was armed; left out without a GPS fix.
- */
 export function arm(
   deviceId: string,
   reading: Reading,
@@ -147,10 +127,6 @@ export function arm(
   return post(`/api/devices/${deviceId}/arm`, body, 200, () => mockStatus(deviceId, 'GUARDING', reading.takenAt), options);
 }
 
-/**
- * GET /api/devices/{id}/status: one attempt, no retries (it's polled every second while armed).
- * Mock mode always answers GUARDING: alerts need the dummy server.
- */
 export async function getStatus(deviceId: string): Promise<ApiResult<DeviceStatus>> {
   if (isMockMode) return { ok: true, data: mockStatus(deviceId, 'GUARDING', null) };
 
@@ -167,7 +143,6 @@ export async function getStatus(deviceId: string): Promise<ApiResult<DeviceStatu
   }
 }
 
-/** POST /api/devices/{id}/disarm: stops guarding. */
 export function disarm(deviceId: string, options: RequestOptions = {}): Promise<ApiResult<DeviceStatus>> {
   return post(`/api/devices/${deviceId}/disarm`, undefined, 200, () => mockStatus(deviceId, 'DISARMED', null), options);
 }

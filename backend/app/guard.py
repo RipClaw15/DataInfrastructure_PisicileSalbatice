@@ -82,8 +82,8 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
         if live.location is not None:
             if saved_at is None or live.location_at >= as_utc(saved_at):
                 locations["last_location"] = live.location
-    # Online is based on server arrival, not the phone clock. last_seen remains
-    # the newest reading timestamp even when readings arrive out of order.
+    
+    
     online = False
     if last_received is not None:
         arrived = last_received.replace(tzinfo=last_received.tzinfo or timezone.utc)

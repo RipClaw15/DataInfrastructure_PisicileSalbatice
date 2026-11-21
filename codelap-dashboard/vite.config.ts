@@ -6,6 +6,6 @@ import path from 'node:path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    fs: { allow: [path.resolve(__dirname, '..')] }, // repo root, for contracts/frontend/*.json
+    fs: { allow: [path.resolve(__dirname, '..')] }, 
   },
 })

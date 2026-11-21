@@ -1,4 +1,4 @@
-/** Small SVG charts: no chart framework, fixed viewBox, bounded history. */
+
 export function renderChart(container, history, key, color, minimumMax) {
   const W=560,H=210,left=42,right=14,top=15,bottom=35;
   const width=W-left-right,height=H-top-bottom;

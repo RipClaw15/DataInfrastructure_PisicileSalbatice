@@ -11,7 +11,7 @@ function generateDeviceId(): string {
   return `phone-${suffix}`;
 }
 
-/** Returns the device ID saved on this phone, creating it on first launch. */
+
 export async function getDeviceId(): Promise<string> {
   const saved = await AsyncStorage.getItem(KEY);
   if (saved) return saved;

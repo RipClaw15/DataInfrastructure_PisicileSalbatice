@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { UnauthorizedError } from '../api'
 
-// A number, or a function of the latest data (e.g. poll faster while armed)
+
 type Seconds<T> = number | ((data: T | null) => number)
 
 export function usePolling<T>(
@@ -24,7 +24,7 @@ export function usePolling<T>(
         onUnauthorizedRef.current = onUnauthorized
     })
 
-    // A changed plain number restarts the loop right away
+    
     const fixedSeconds = typeof seconds === 'number' ? seconds : null
 
     useEffect(() => {

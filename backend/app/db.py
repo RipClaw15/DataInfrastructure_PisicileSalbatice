@@ -27,8 +27,8 @@ def get_engine() -> Engine:
         pool_timeout=settings.db_pool_timeout_seconds,
         connect_args={
             "connect_timeout": 3,
-            # connect_timeout only covers opening a socket. These also bound
-            # statements/locks and unacknowledged TCP writes on Linux/Railway.
+            
+            
             "tcp_user_timeout": settings.db_tcp_user_timeout_ms,
             "keepalives_idle": 5,
             "keepalives_interval": 2,

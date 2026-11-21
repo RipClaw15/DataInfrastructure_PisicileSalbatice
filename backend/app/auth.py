@@ -48,7 +48,7 @@ def current_device(
     token: Annotated[str, Depends(require_device_token)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Device:
-    # Identify the phone from its credential, never a caller-supplied device ID.
+    
     device = db.scalar(select(Device).where(Device.device_token_hash == hash_token(token)))
     if device is None:
         raise invalid_token()

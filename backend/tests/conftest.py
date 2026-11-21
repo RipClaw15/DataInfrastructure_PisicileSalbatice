@@ -33,7 +33,7 @@ def client(engine):
 
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_db] = database
-    # No lifespan: tests create their own tables, never the configured database.
+    
     client = TestClient(app)
     try:
         yield client

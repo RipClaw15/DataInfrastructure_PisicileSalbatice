@@ -35,7 +35,7 @@ def timed_stage(stage: str):
 
 class TimedQueuePool(QueuePool):
     def connect(self):
-        # Includes waiting for a slot, creating a connection, and pre-ping.
+        
         with timed_stage("db_checkout"):
             return super().connect()
 

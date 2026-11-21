@@ -13,7 +13,7 @@ const markerIcon = L.divIcon({
 })
 
 type LocationMapProps = {
-    /** null: no location yet; the map shows the world without a pin. */
+    
     location: Location | null
     label: string
     alert?: boolean
@@ -38,7 +38,7 @@ export default function LocationMap({ location, label, alert = false }: Location
                     <TileLayer
                         attribution='&copy; OpenStreetMap contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        // Darkened in index.css, so the map matches the dark dashboard.
+                        
                         className="map-tiles-dark"
                     />
                     {location && location.accuracy_m !== null && (
@@ -46,7 +46,7 @@ export default function LocationMap({ location, label, alert = false }: Location
                             center={[location.lat, location.lon]}
                             radius={location.accuracy_m}
                             pathOptions={{
-                                // Leaflet sets SVG attributes, where CSS variables don't work: the palette's alert and accent.
+                                
                                 color: alert ? '#f2545b' : '#54c3ea',
                                 fillOpacity: 0.12,
                             }}
@@ -64,10 +64,7 @@ export default function LocationMap({ location, label, alert = false }: Location
     )
 }
 
-/**
- * MapContainer only uses `center` when it first appears: follow the phone as it moves, keeping the user's zoom,
- * except coming from the world view (no location before), which zooms in to street level.
- */
+
 function FollowLocation({ lat, lon }: { lat: number; lon: number }) {
     const map = useMap()
     useEffect(() => {

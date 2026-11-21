@@ -1,4 +1,4 @@
-// Presentation only: no telemetry requests, no device state changes.
+
 const descriptions = {
   DISARMED: ['Disarmed', "The phone isn't guarding."],
   GUARDING: ['Guarding', 'The phone is lying still and watching your stuff.'],
