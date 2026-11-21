@@ -31,6 +31,7 @@ class DeviceResponse(BaseModel):
     created_at: UtcTimestamp
     last_seen: UtcTimestamp | None
     paired_dashboards: int = 0
+    dashboard_paired_at: UtcTimestamp | None = None
 
 
 class DeviceUpdateRequest(BaseModel):

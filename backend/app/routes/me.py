@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import current_device, current_phone_any_token
 from ..db import get_db
-from ..guard import lock_device, paired_dashboards, utc_now
+from ..guard import dashboard_paired_at, lock_device, paired_dashboards, utc_now
 from ..live import live_telemetry
 from ..models import (
     Alert,
@@ -25,7 +25,10 @@ router = APIRouter(prefix="/api", tags=["devices"])
 
 
 def device_response(db: Session, device: Device) -> DeviceResponse:
-    return DeviceResponse.model_validate(device).model_copy(update={"paired_dashboards": paired_dashboards(db, device.device_id)})
+    return DeviceResponse.model_validate(device).model_copy(update={
+        "paired_dashboards": paired_dashboards(db, device.device_id),
+        "dashboard_paired_at": dashboard_paired_at(db, device.device_id),
+    })
 
 
 @router.get("/me", response_model=DeviceResponse)

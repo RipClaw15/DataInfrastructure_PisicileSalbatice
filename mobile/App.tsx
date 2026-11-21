@@ -242,7 +242,7 @@ export default function App() {
   }
 
   /** The code to pair a dashboard, and the button for it. On the main screen before the first dashboard, in Settings after. */
-  function pairingBlock(idleLabel: string) {
+  function pairingBlock(idleLabel: string, closable = false) {
     return (
       <View style={styles.card}>
         {pairing.kind === 'ready' && (
@@ -268,6 +268,11 @@ export default function App() {
             {pairing.kind === 'loading' ? 'Getting a code…' : pairing.kind === 'ready' ? 'New code' : idleLabel}
           </Text>
         </Pressable>
+        {closable && (
+          <Pressable onPress={() => setPairing({ kind: 'idle' })} style={({ pressed }) => [styles.link, pressed && styles.buttonPressed]}>
+            <Text style={styles.linkText}>Close</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -386,7 +391,7 @@ export default function App() {
               )}
             </View>
           )}
-          {(paired ?? 0) > 0 && pairing.kind !== 'idle' && <View style={styles.renameBox}>{pairingBlock('Show dashboard code')}</View>}
+          {(paired ?? 0) > 0 && pairing.kind !== 'idle' && <View style={styles.renameBox}>{pairingBlock('Show dashboard code', true)}</View>}
           <View style={styles.listRow}>
             <View style={styles.rowText}>
               <Text style={styles.rowLabel}>Name</Text>

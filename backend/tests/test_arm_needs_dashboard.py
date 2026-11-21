@@ -41,3 +41,36 @@ def test_renaming_reports_the_count_too(client):
     phone = register(client)
     pair(client, phone)
     assert client.patch("/api/me", json={"device_name": "Kitchen"}, headers=phone).json()["paired_dashboards"] == 1
+
+
+def test_one_dashboard_per_phone_a_new_pairing_replaces_the_old(client):
+    phone = register(client)
+    first = pair(client, phone)
+    paired_at = client.get("/api/me", headers=phone).json()["dashboard_paired_at"]
+    assert paired_at is not None
+
+    second = pair(client, phone)
+    me = client.get("/api/me", headers=phone).json()
+    assert me["paired_dashboards"] == 1
+    assert me["dashboard_paired_at"] != paired_at
+    assert client.get("/api/me/status", headers=first).status_code == 401
+    assert client.get("/api/me/status", headers=second).status_code == 200
+
+
+def test_a_new_code_for_the_same_phone_shows_the_same_data(client):
+    phone = register(client)
+    first = pair(client, phone)
+    assert client.post("/api/me/arm", json=ARM, headers=phone).status_code == 200
+    picked_up = {"device_id": "phone-aaaa1111", "event_type": "accelerometer", "value": 1.0, "unit": "g",
+                 "timestamp": "2026-11-21T10:00:05Z", "axes": {"x": 0, "y": 1, "z": 0}}
+    assert client.post("/api/me/events", json=picked_up, headers=phone).status_code == 201
+    before = {path: client.get(f"/api/me/{path}", headers=first).json() for path in ("status", "alerts", "events")}
+
+    # Refresh, new code, same phone: a new key, the same data.
+    second = pair(client, phone)
+    after = {path: client.get(f"/api/me/{path}", headers=second).json() for path in ("status", "alerts", "events")}
+    # Pairing marks the phone as just seen (so the dashboard shows it connected); everything else is the same.
+    for snapshot in (before, after):
+        snapshot["status"].pop("last_seen")
+    assert after == before
+    assert after["status"]["state"] == "ALERT"

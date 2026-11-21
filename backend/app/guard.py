@@ -31,8 +31,13 @@ def lock_device(db: Session, device_id: str) -> None:
 
 
 def paired_dashboards(db: Session, device_id: str) -> int:
-    """How many dashboards hold a read-only token for this phone."""
+    """How many dashboards hold a read-only token for this phone (one at most: a new pairing replaces the old)."""
     return db.scalar(select(func.count()).select_from(ViewerToken).where(ViewerToken.device_id == device_id)) or 0
+
+
+def dashboard_paired_at(db: Session, device_id: str) -> datetime | None:
+    """When the current dashboard was paired; changes when a new dashboard replaces it."""
+    return db.scalar(select(func.max(ViewerToken.created_at)).where(ViewerToken.device_id == device_id))
 
 
 def open_session(db: Session, device_id: str) -> ArmSession | None:

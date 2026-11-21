@@ -81,6 +81,8 @@ def pair_dashboard(
     if device is not None:
         device.last_seen = now
     viewer_token = generate_token()
-    db.add(ViewerToken(token_hash=hash_token(viewer_token), device_id=entry.device_id))
+    # One dashboard per phone: pairing a new one replaces the old, whose token stops working.
+    db.execute(delete(ViewerToken).where(ViewerToken.device_id == entry.device_id))
+    db.add(ViewerToken(token_hash=hash_token(viewer_token), device_id=entry.device_id, created_at=now))
     db.commit()
     return PairResponse(device_id=entry.device_id, viewer_token=viewer_token)
