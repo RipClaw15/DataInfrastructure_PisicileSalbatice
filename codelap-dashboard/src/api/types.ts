@@ -16,6 +16,8 @@ export interface Reading {
     timestamp: string
     axes: { x: number; y: number; z: number }
     received_at: string
+    /** Why the backend kept this reading; the 'armed' one holds the resting position. */
+    snapshot_reason?: 'armed' | 'picked_up' | 'gps_update' | 'disarmed'
 }
 
 export interface EventsResponse {

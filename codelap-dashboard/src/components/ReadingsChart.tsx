@@ -13,6 +13,7 @@ import {
 import type { Alert, Reading } from '../api/types.ts'
 import { MOVING_THRESHOLD_G, STILL_G } from '../utils/stats.ts'
 import { formatTime } from '../utils/time.ts'
+import { card, cardTitle } from '../utils/ui.ts'
 
 type ReadingsChartProps = {
     events: Reading[]
@@ -59,9 +60,9 @@ export default function ReadingsChart({ events, armedAt, alerts }: ReadingsChart
     const armedFrom = armedAt ? Math.min(Math.max(new Date(armedAt).getTime(), first), last) : null
 
     return (
-        <section className="rounded-xl border border-line bg-card p-4">
+        <section className={card}>
             <div className="mb-1 flex items-center justify-between">
-                <h2 className="text-muted">Magnitude (g)</h2>
+                <h2 className={cardTitle}>Magnitude (g)</h2>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
                     <input
                         type="checkbox"
@@ -75,7 +76,7 @@ export default function ReadingsChart({ events, armedAt, alerts }: ReadingsChart
             <p className="mb-4 text-xs text-muted">
                 g is gravity (1 g = Earth's pull). The grey band is "still", within {MOVING_THRESHOLD_G} g of 1 g;
                 the line leaves it when the phone moves.
-                {armedFrom !== null && ' Green shading: guarding.'}
+                {armedFrom !== null && ' Blue shading: guarding.'}
                 {alerts.length > 0 && ' Red line: alert.'}
             </p>
 

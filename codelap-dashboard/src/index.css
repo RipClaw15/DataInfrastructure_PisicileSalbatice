@@ -12,41 +12,41 @@
     --color-warn: var(--warn);
     --color-warn-soft: var(--warn-soft);
     --color-alert: var(--alert);
+    --color-alert-soft: var(--alert-soft);
 }
 
+/* One typeface for the landing page and the dashboard. */
+@theme {
+    --font-sans: "Schibsted Grotesk", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* The StayPut palette, "night watch": ink-blue backgrounds and blue-grey text around the sky aqua accent,
+   so the alarm red is the only warm colour on the page.
+   Alerts always use the alert colour; warn (amber) is only for real warnings. Shared with the mobile app (mobile/src/theme.ts). */
 :root {
-    --page: #f6f7f9;
-    --card: #ffffff;
-    --line: #e6e8ec;
-    --ink: #1c2024;
-    --muted: #6b7280;
-    --accent: #3e63dd;
-    --ok: #30a46c;
-    --ok-soft: #e6f6ed;
-    --warn: #e5484d;
-    --warn-soft: #fdecec;
-    --alert: #dc2626;
+    color-scheme: dark;
+    --page: #0c1620;
+    --card: #13212d;
+    --line: #23384a;
+    --ink: #e8f1f5;
+    --muted: #8aa3b3;
+    --accent: #54c3ea;
+    --ok: #54c3ea;
+    --ok-soft: #162e3c;
+    --warn: #f2b441;
+    --warn-soft: #2c2c25;
+    --alert: #f2545b;
+    --alert-soft: #312029;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --page: #111315;
-        --card: #1a1d21;
-        --line: #2a2e33;
-        --ink: #edeef0;
-        --muted: #9aa0a8;
-        --accent: #7c93ee;
-        --ok: #3dd68c;
-        --ok-soft: #12281d;
-        --warn: #ff7b78;
-        --warn-soft: #3a1f20;
-        --alert: #dc2626;
-    }
+/* OpenStreetMap tiles turned dark: inverted, with the hues turned back so water stays blue. */
+.map-tiles-dark {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.6);
 }
 
 body {
     margin: 0;
     background: var(--page);
     color: var(--ink);
-    font-size: 14px;
+    font-size: 16px;
 }

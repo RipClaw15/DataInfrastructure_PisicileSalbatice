@@ -1,6 +1,7 @@
 import type { Reading } from '../api/types.ts'
 import { isMoving } from '../utils/stats.ts'
 import { formatTime } from '../utils/time.ts'
+import { card, cardTitle } from '../utils/ui.ts'
 
 type ReadingsTableProps = {
     events: Reading[]
@@ -11,8 +12,8 @@ const td = 'py-2'
 
 export default function ReadingsTable({ events }: ReadingsTableProps) {
     return (
-        <section className="rounded-xl border border-line bg-card p-4">
-            <h2 className="mb-2 text-muted">Readings</h2>
+        <section className={card}>
+            <h2 className={`mb-3 ${cardTitle}`}>Readings</h2>
 
             <div className="max-h-96 overflow-auto">
                 <table className="w-full text-right tabular-nums">

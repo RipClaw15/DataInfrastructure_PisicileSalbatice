@@ -1,13 +1,14 @@
-import { getAlerts, getEvents, getStatus } from '../api'
+import { getAlerts, getEvents, getLive, getStatus } from '../api'
 import { ACTIVE_POLL_SECONDS, POLL_SECONDS } from '../api/consts.ts'
 import type { DeviceStatus } from '../api/types.ts'
-import AlertHistory from '../components/AlertHistory.tsx'
 import Header from '../components/Header.tsx'
-import KpiRow from '../components/KpiRow.tsx'
-import ReadingsPanel from '../components/ReadingsPanel.tsx'
-import StatusBanner from '../components/StatusBanner.tsx'
+import ActivityList from '../components/ActivityList.tsx'
+import OverviewCards from '../components/OverviewCards.tsx'
+import StatusHero from '../components/StatusHero.tsx'
+import TechnicalDetails from '../components/TechnicalDetails.tsx'
 import { usePolling } from '../hooks/usePolling.ts'
 import LocationMap from "../components/LocationMap.tsx";
+import { restingAxes } from '../utils/orientation.ts'
 
 type DashboardProps = {
     onUnpair: () => void
@@ -36,38 +37,57 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
         hasDevice,
     )
 
+    // The phone's newest reading, for the 3D phone; only while armed, when the phone is sending.
+    const live = usePolling(() => getLive(deviceId!), ACTIVE_POLL_SECONDS, onUnpair, hasDevice && armed)
+    const rest = restingAxes(status.data, readings)
+    const current = armed ? live.data?.axes ?? status.data?.last_alert?.axes ?? null : null
+
     const statusData = status.data
     const liveLocation = statusData?.last_location ?? null
     const armedLocation = statusData?.location ?? null
 
-    const shownLocation = liveLocation ?? armedLocation
+    const shownLocation =
+        statusData?.state === 'ALERT' && liveLocation
+            ? { location: liveLocation, label: 'Where your phone is now', alert: true }
+            // While guarding, and in the first moments of an alert before the phone's first live location arrives.
+            : statusData?.state !== 'DISARMED' && armedLocation
+                ? { location: armedLocation, label: 'Where you left your phone', alert: false }
+                // Not guarding: the last place the phone reported, e.g. from the last alert.
+                : statusData?.state === 'DISARMED' && liveLocation
+                    ? { location: liveLocation, label: 'Last known location', alert: false }
+                    : { location: null, label: 'No location yet', alert: false }
 
     const backendDown = events.error !== null || status.error !== null || alerts.error !== null
     const alertList = alerts.data?.alerts ?? []
 
     return (
-        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 p-6">
+        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-5 p-6">
             <Header lastRefreshed={events.lastRefreshed} stale={backendDown} onUnpair={onUnpair} />
 
             {backendDown && (
-                <div role="alert" className="rounded-xl bg-warn-soft px-4 py-2 text-warn">
-                    Backend unreachable, retrying…
+                <div role="alert" className="rounded-xl bg-warn-soft px-5 py-3 text-base text-warn">
+                    Can't reach the server right now. Trying again…
                 </div>
             )}
 
-            <StatusBanner status={status.data} />
-            <KpiRow status={status.data} events={readings} />
-            <ReadingsPanel
+            <StatusHero status={status.data} rest={rest} current={current} />
+            <OverviewCards status={status.data} />
+            <div className="grid gap-5 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                    <LocationMap
+                        location={shownLocation.location}
+                        label={shownLocation.label}
+                        alert={shownLocation.alert}
+                    />
+                </div>
+                <ActivityList status={status.data} alerts={alerts.data ? alertList : null} />
+            </div>
+            <TechnicalDetails
+                status={status.data}
                 events={readings}
                 armedAt={armed ? status.data?.armed_at ?? null : null}
                 alerts={alertList}
             />
-            <LocationMap
-                location={shownLocation}
-                label="Last known location"
-                alert={statusData?.state === 'ALERT'}
-            />
-            <AlertHistory alerts={alerts.data ? alertList : null} />
         </main>
     )
 }

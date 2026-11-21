@@ -14,6 +14,7 @@ import type {
     Me,
     MyEventsResponse,
     PairResponse,
+    Reading,
 } from "./types.ts";
 
 const TOKEN_KEY = 'viewer_token'
@@ -107,6 +108,23 @@ function fixtureStatus(): DeviceStatus {
 export async function getStatus(deviceId: string): Promise<DeviceStatus> {
     if (isFixtureMode) return fixtureStatus()
     return request<DeviceStatus>(`/api/devices/${encodeURIComponent(deviceId)}/status`, {}, false)
+}
+
+/** The latest reading the backend got from the phone (in memory, not history), or null. */
+export async function getLive(deviceId: string): Promise<Reading | null> {
+    if (isFixtureMode) {
+        // Alert: the newest sample reading (the phone picked up). Otherwise: the one closest to when it was
+        // armed, so a guarding phone lies where it was put.
+        const status = fixtureStatus()
+        const armedAt = status.armed_at ? new Date(status.armed_at).getTime() : 0
+        const distance = (e: Reading) => Math.abs(new Date(shiftIso(e.timestamp)).getTime() - armedAt)
+        const reading =
+            status.state === 'ALERT'
+                ? eventsFixture.events[0]
+                : eventsFixture.events.reduce((best, e) => (distance(e) < distance(best) ? e : best))
+        return { ...reading, timestamp: shiftIso(reading.timestamp), received_at: shiftIso(reading.received_at) }
+    }
+    return request<Reading | null>(`/api/devices/${encodeURIComponent(deviceId)}/live`, {}, false)
 }
 
 export async function getAlerts(deviceId: string, limit = 20): Promise<AlertsResponse> {
