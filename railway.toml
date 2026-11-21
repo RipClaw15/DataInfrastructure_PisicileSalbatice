@@ -1,7 +1,8 @@
 [build]
 builder = "DOCKERFILE"
-# Temporary in-memory mobile API for integration testing.
-dockerfilePath = "backend/Dockerfile.dummy"
+# Select per service with RAILWAY_DOCKERFILE_PATH:
+# dummy API: backend/Dockerfile.dummy
+# FastAPI: Dockerfile
 
 [deploy]
 healthcheckPath = "/health"
