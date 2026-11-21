@@ -1,0 +1,21 @@
+{
+  "device_id": "demo-phone-01",
+  "state": "ALERT",
+  "armed_at": "2026-11-20T19:10:00Z",
+  "last_seen": "2026-11-20T19:10:30Z",
+  "online": true,
+  "last_alert": {
+    "id": 1,
+    "device_id": "demo-phone-01",
+    "type": "picked_up",
+    "timestamp": "2026-11-20T19:10:12Z",
+    "angle_deg": 38.5,
+    "value": 0.973,
+    "unit": "g",
+    "axes": {
+      "x": 0.02,
+      "y": -0.628,
+      "z": -0.744
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "device_id": "demo-phone-01",
+  "state": "GUARDING",
+  "armed_at": "2026-11-20T19:10:00Z",
+  "last_seen": "2026-11-20T19:10:05Z",
+  "online": true,
+  "last_alert": null
+}

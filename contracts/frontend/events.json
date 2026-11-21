@@ -1,0 +1,23 @@
+{
+  "events": [
+    {"id": 189, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.925, "unit": "g", "timestamp": "2026-11-20T19:05:14Z", "axes": {"x": 0.037, "y": -0.032, "z": -0.924}, "received_at": "2026-11-20T19:05:14Z"},
+    {"id": 188, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.984, "unit": "g", "timestamp": "2026-11-20T19:05:14Z", "axes": {"x": 0.022, "y": -0.029, "z": -0.984}, "received_at": "2026-11-20T19:05:14Z"},
+    {"id": 187, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.954, "unit": "g", "timestamp": "2026-11-20T19:05:13Z", "axes": {"x": 0.033, "y": -0.03, "z": -0.953}, "received_at": "2026-11-20T19:05:13Z"},
+    {"id": 186, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.98, "unit": "g", "timestamp": "2026-11-20T19:05:13Z", "axes": {"x": 0.025, "y": -0.028, "z": -0.98}, "received_at": "2026-11-20T19:05:13Z"},
+    {"id": 172, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 6.74, "unit": "g", "timestamp": "2026-11-20T18:58:36Z", "axes": {"x": -0.727, "y": -0.595, "z": -6.675}, "received_at": "2026-11-20T18:58:36Z"},
+    {"id": 168, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 5.491, "unit": "g", "timestamp": "2026-11-20T18:58:36Z", "axes": {"x": -0.978, "y": 0.029, "z": -5.403}, "received_at": "2026-11-20T18:58:36Z"},
+    {"id": 162, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 1.002, "unit": "g", "timestamp": "2026-11-20T18:58:08Z", "axes": {"x": 0.117, "y": -0.494, "z": -0.864}, "received_at": "2026-11-20T18:58:08Z"},
+    {"id": 160, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 2.69, "unit": "g", "timestamp": "2026-11-20T18:58:08Z", "axes": {"x": 2.267, "y": -0.056, "z": -1.446}, "received_at": "2026-11-20T18:58:08Z"},
+    {"id": 159, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 3.484, "unit": "g", "timestamp": "2026-11-20T18:58:08Z", "axes": {"x": -3.193, "y": -1.261, "z": -0.596}, "received_at": "2026-11-20T18:58:08Z"},
+    {"id": 158, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 2.372, "unit": "g", "timestamp": "2026-11-20T18:58:07Z", "axes": {"x": 2.123, "y": -0.27, "z": -1.022}, "received_at": "2026-11-20T18:58:07Z"},
+    {"id": 157, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 1.852, "unit": "g", "timestamp": "2026-11-20T18:58:07Z", "axes": {"x": -1.469, "y": -0.767, "z": -0.826}, "received_at": "2026-11-20T18:58:07Z"},
+    {"id": 152, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 1.006, "unit": "g", "timestamp": "2026-11-20T18:57:59Z", "axes": {"x": -0.033, "y": -0.645, "z": -0.771}, "received_at": "2026-11-20T18:57:59Z"},
+    {"id": 151, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 1.013, "unit": "g", "timestamp": "2026-11-20T18:57:59Z", "axes": {"x": -0.049, "y": -0.643, "z": -0.781}, "received_at": "2026-11-20T18:57:59Z"},
+    {"id": 147, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 1.836, "unit": "g", "timestamp": "2026-11-20T18:57:58Z", "axes": {"x": -1.753, "y": -0.543, "z": 0.077}, "received_at": "2026-11-20T18:57:58Z"},
+    {"id": 146, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 2.578, "unit": "g", "timestamp": "2026-11-20T18:57:58Z", "axes": {"x": -1.939, "y": -0.754, "z": -1.522}, "received_at": "2026-11-20T18:57:58Z"},
+    {"id": 145, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 2.039, "unit": "g", "timestamp": "2026-11-20T18:57:58Z", "axes": {"x": 1.779, "y": -0.66, "z": -0.746}, "received_at": "2026-11-20T18:57:58Z"},
+    {"id": 143, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.973, "unit": "g", "timestamp": "2026-11-20T18:57:52Z", "axes": {"x": 0.02, "y": -0.628, "z": -0.744}, "received_at": "2026-11-20T18:57:52Z"},
+    {"id": 49, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.993, "unit": "g", "timestamp": "2026-11-20T18:57:34Z", "axes": {"x": -0.039, "y": -0.741, "z": -0.661}, "received_at": "2026-11-20T18:57:34Z"},
+    {"id": 43, "device_id": "demo-phone-01", "event_type": "accelerometer", "value": 0.988, "unit": "g", "timestamp": "2026-11-20T18:57:32Z", "axes": {"x": -0.066, "y": -0.738, "z": -0.654}, "received_at": "2026-11-20T18:57:32Z"}
+  ]
+}
