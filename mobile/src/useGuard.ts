@@ -210,5 +210,8 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
   const settleSecondsLeft =
     settleStartedAt === null ? 0 : Math.max(0, Math.ceil((SETTLE_MIN_MS - (Date.now() - settleStartedAt)) / 1000));
 
-  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, alert, lastSession, arm, cancel, disarm };
+  /** After Delete my data: what happened in the last session isn't there to show any more. */
+  const forgetLastSession = () => setLastSession(null);
+
+  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, alert, lastSession, arm, cancel, disarm, forgetLastSession };
 }

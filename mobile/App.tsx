@@ -193,6 +193,7 @@ export default function App() {
             setPairing({ kind: 'idle' });
             setPaired(isMockMode ? 1 : 0);
             setLastPayload(null);
+            guard.forgetLastSession();
             setDeleting('deleted');
             // Start over as a new phone.
             const fresh = await ensureRegistered();
