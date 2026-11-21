@@ -50,7 +50,8 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
             : statusData?.state !== 'DISARMED' && armedLocation
                 ? { location: armedLocation, label: 'Where you left your phone', alert: false }
                 
-                : statusData?.state === 'DISARMED' && liveLocation
+                // Not guarding, or guarding without a position from Start guarding: the newest one there is.
+                : liveLocation
                     ? { location: liveLocation, label: 'Last known location', alert: false }
                     : { location: null, label: 'No location yet', alert: false }
 
