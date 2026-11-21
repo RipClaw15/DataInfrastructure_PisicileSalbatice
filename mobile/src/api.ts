@@ -80,7 +80,7 @@ export function buildPayload(deviceId: string, reading: Reading, location: GeoPo
   };
 }
 
-class RetryableError extends Error {}
+class RetryableError extends Error { }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -274,6 +274,11 @@ export async function getStatus(deviceId: string): Promise<ApiResult<DeviceStatu
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     });
+    if (res.status === 401) {
+      cachedToken = null;
+      await clearDeviceToken();
+      return { ok: false, reason: 're-authenticating device (401)' };
+    }
     if (res.status !== 200) return { ok: false, reason: `status check failed (${res.status})` };
     return { ok: true, data: (await res.json()) as DeviceStatus };
   } catch {
@@ -312,6 +317,11 @@ export async function updateDeviceName(name: string): Promise<ApiResult<{ device
     if (res.status === 200) {
       const data = (await res.json()) as { device_name: string | null };
       return { ok: true, data };
+    }
+    if (res.status === 401) {
+      cachedToken = null;
+      await clearDeviceToken();
+      return { ok: false, reason: 're-authenticating device (401)' };
     }
     return { ok: false, reason: `could not save name (${res.status})` };
   } catch {
