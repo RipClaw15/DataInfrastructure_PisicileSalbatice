@@ -21,6 +21,7 @@ from backend.app.models import (  # noqa: F401
     SessionLocation,
     ViewerToken,
 )
+from backend.app.config import settings
 from backend.app.rate_limit import pair_rate_limiter
 
 SAMPLES = Path(__file__).resolve().parents[2] / "contracts/backend"
@@ -38,6 +39,9 @@ def engine():
 def client(engine):
     live_telemetry.clear()
     pair_rate_limiter.reset()
+    # Most tests are about detection, not pairing, so they arm without a dashboard; test_arm_needs_dashboard turns it on.
+    require_dashboard = settings.require_dashboard_to_arm
+    settings.require_dashboard_to_arm = False
 
     def database():
         with Session(engine) as session:
@@ -55,6 +59,7 @@ def client(engine):
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous)
         pair_rate_limiter.reset()
+        settings.require_dashboard_to_arm = require_dashboard
 
 
 @pytest.fixture
