@@ -1,6 +1,7 @@
-import meFixture from '../../local-docs/frontend/me.json'
-import eventsFixture from '../../local-docs/frontend/me_events.json'
-import pairFixture from '../../local-docs/frontend/pair_response.json'
+// Legacy readings dashboard fixtures, retained while the guard API is integrated.
+import meFixture from './fixtures/me.json'
+import eventsFixture from './fixtures/me_events.json'
+import pairFixture from './fixtures/pair_response.json'
 
 export const API_URL: string = import.meta.env.VITE_API_URL ?? ''
 export const POLL_SECONDS = Number(import.meta.env.VITE_POLL_SECONDS ?? 3)
