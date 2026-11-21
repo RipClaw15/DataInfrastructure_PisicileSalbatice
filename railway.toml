@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+# Temporary in-memory mobile API for integration testing.
+dockerfilePath = "backend/Dockerfile.dummy"
 
 [deploy]
 healthcheckPath = "/health"

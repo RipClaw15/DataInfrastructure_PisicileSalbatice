@@ -1,0 +1,10 @@
+# Build from the repository root. Temporary, single-instance test API; no database.
+FROM python:3.14-slim
+
+WORKDIR /app
+COPY mobile/dev-server/server.py ./mobile/dev-server/server.py
+
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+
+CMD ["sh", "-c", "exec python -u mobile/dev-server/server.py --port ${PORT:-8000}"]
