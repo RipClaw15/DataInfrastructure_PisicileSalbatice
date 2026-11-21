@@ -1,5 +1,7 @@
 from pathlib import Path
 from contextlib import asynccontextmanager
+from time import perf_counter
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -17,6 +19,7 @@ from .routes.guard import router as guard_router
 from .db import Base
 from .models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
 from .live import live_telemetry
+from .observability import record, request_id
 
 @asynccontextmanager
 async def lifespan(app):
@@ -32,6 +35,28 @@ async def lifespan(app):
 
 
 app = FastAPI(title="StayPut API", version="0.1.0", lifespan=lifespan)
+@app.middleware("http")
+async def request_timing(request, call_next):
+    # Generate IDs ourselves: never log untrusted header content.
+    token = request_id.set(uuid4().hex)
+    started = perf_counter()
+    record("request_start", method=request.method)
+    try:
+        response = await call_next(request)
+        elapsed = round((perf_counter() - started) * 1000, 2)
+        response.headers["X-Request-ID"] = request_id.get()
+        response.headers["Server-Timing"] = f"app;dur={elapsed}"
+        record("request_end", route=getattr(request.scope.get("route"), "path", "unmatched"),
+               status=response.status_code, elapsed_ms=elapsed)
+        return response
+    except Exception as exc:
+        record("request_error", error=type(exc).__name__,
+               elapsed_ms=round((perf_counter() - started) * 1000, 2))
+        raise
+    finally:
+        request_id.reset(token)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip().rstrip("/") for origin in settings.cors_origins.split(",") if origin.strip()],

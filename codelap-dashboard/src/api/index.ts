@@ -18,6 +18,7 @@ import type {
 } from "./types.ts";
 
 const TOKEN_KEY = 'viewer_token'
+const REQUEST_TIMEOUT_MS = 5000
 const FIXTURE_CODE = '482913'
 
 export class UnauthorizedError extends Error {
@@ -51,22 +52,28 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
         if (token) headers.set('Authorization', `Bearer ${token}`)
     }
 
-    let res: Response
+    // Keep the timeout active through body parsing, not just response headers.
+    const signal = init.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+        : AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     try {
-        res = await fetch(`${API_URL}${path}`, { ...init, headers })
-    } catch {
+        const res = await fetch(`${API_URL}${path}`, { ...init, headers, signal })
+        if (res.status === 401 && auth) {
+            clearToken()
+            throw new UnauthorizedError()
+        }
+        if (!res.ok) {
+            const body = await res.json().catch((error: unknown) => {
+                if (signal.aborted) throw error
+                return null
+            })
+            throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`)
+        }
+        return await res.json() as T
+    } catch (error) {
+        if (error instanceof UnauthorizedError || error instanceof ApiError) throw error
         throw new NetworkError()
     }
-
-    if (res.status === 401 && auth) {
-        clearToken()
-        throw new UnauthorizedError()
-    }
-    if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new ApiError(res.status, body?.detail ?? `Request failed (${res.status})`)
-    }
-    return res.json() as Promise<T>
 }
 
 // v0 + v1: no token, pairing is off until v3

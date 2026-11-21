@@ -38,8 +38,8 @@ export function usePolling<T>(
             return (typeof s === 'function' ? s(result) : s) * 1000
         }
 
+        let result: T | null = null
         async function tick() {
-            let result: T | null = null
             try {
                 result = await fetcherRef.current()
                 if (cancelled) return

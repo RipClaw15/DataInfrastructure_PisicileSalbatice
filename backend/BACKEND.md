@@ -297,3 +297,33 @@ Keep auth and the "what's my phone" lookup in `auth.py` so these additions are s
 - Branches `backend/<feature>` (e.g. `backend/register`, `backend/events`, `backend/pairing`, `backend/seed`, `backend/simulator`), merged to `main` often.
 - Small commits with clear messages, one per feature/step.
 - Only touch `src/backend/`, `tools/simulator/`, `contracts/backend/`, `docker-compose.yml` and `.dockerignore`. API changes go through a contract PR approved by all three.
+
+## Diagnosing stalled requests
+
+API responses include `X-Request-ID` and `Server-Timing: app;dur=...`.
+Search Railway service logs for that request ID. Structured timing records use:
+
+- `request_start` / `request_end`: application request duration and HTTP status.
+- `db_checkout_start` / `db_checkout`: pool wait, connection setup, and pre-ping.
+- `db_query_start` / `db_query`: SQL execution duration.
+- `db_error`: exception class, PostgreSQL SQLSTATE, and disconnect classification.
+
+A start without a matching completion identifies an operation still waiting.
+SQL text, bound values, connection strings, and locations are not included in these
+records. Slow stages (500 ms or more) and errors log at WARNING; others use INFO.
+
+Timeout defaults are configurable with `DB_POOL_TIMEOUT_SECONDS` (2),
+`DB_STATEMENT_TIMEOUT_MS` (3000), `DB_LOCK_TIMEOUT_MS` (1000), and
+`DB_TCP_USER_TIMEOUT_MS` (5000). PostgreSQL idle transactions are closed after
+10 seconds. TCP user timeout bounds unacknowledged writes on supported systems
+(including Linux/Railway); it is not a total request deadline. Pool pre-ping remains
+enabled. These limits bound individual operations, so an HTTP request performing
+multiple queries can take longer. SQLAlchemy failures return 503 through the
+existing database dependency.
+
+The dashboard separately aborts each request after 5 seconds, including response
+body reading. Polling keeps its last known cadence after a transient error, so an
+armed device continues retrying at the active interval. A browser abort does not
+cancel work already running in the backend. These safeguards limit stalls but do
+not establish their underlying cause; correlate checkout/query timing with
+PostgreSQL and Railway logs before attributing failures to a specific component.
