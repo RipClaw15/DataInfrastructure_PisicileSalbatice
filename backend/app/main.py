@@ -47,6 +47,11 @@ def landing_page():
     return FileResponse(LANDING_PAGE)
 
 
+@app.get("/dashboard", response_class=FileResponse, include_in_schema=False)
+def dashboard():
+    return FileResponse(LANDING_PAGE.parent / "dashboard.html")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
