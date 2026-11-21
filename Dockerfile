@@ -3,8 +3,10 @@ FROM node:26-slim AS dashboard-build
 WORKDIR /web/codelap-dashboard
 COPY codelap-dashboard/package.json codelap-dashboard/package-lock.json ./
 # Temporary workaround for the upstream TypeScript/ESLint peer conflict.
-# Keep Vigu's package.json and lockfile unchanged.
-RUN npm ci --legacy-peer-deps
+# Unlike --legacy-peer-deps, --force still installs locked runtime peers
+# (including Recharts' react-is). npm ci leaves Vigu's package files unchanged.
+RUN npm ci --force
+RUN node -e "require.resolve('react-is'); require.resolve('recharts')"
 COPY codelap-dashboard/ ./
 # Fixture imports must resolve at build time, even for a live API build.
 COPY contracts/frontend/ /web/contracts/frontend/
