@@ -341,20 +341,24 @@ export async function updateDeviceName(name: string): Promise<ApiResult<{ device
   }
 }
 
+/** The phone's dashboard: one at most, since pairing a new one replaces the old. */
+export type DashboardPairing = { paired: boolean; pairedAt: string | null };
+
 /**
- * GET /api/me: how many dashboards follow this phone. Arming needs at least one (the server refuses otherwise),
- * because the dashboard is where the alarm shows up. Mock mode counts as paired.
+ * GET /api/me: whether a dashboard follows this phone, and since when (that changes when a new one replaces it).
+ * Arming needs one (the server refuses otherwise), because the dashboard is where the alarm shows up.
+ * Mock mode counts as paired.
  */
-export async function getPairedDashboards(): Promise<ApiResult<number>> {
-  if (isMockMode) return { ok: true, data: 1 };
+export async function getDashboardPairing(): Promise<ApiResult<DashboardPairing>> {
+  if (isMockMode) return { ok: true, data: { paired: true, pairedAt: null } };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const token = await getOrRegisterToken();
     const res = await fetch(`${API_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
     if (res.status !== 200) return { ok: false, reason: `check failed (${res.status})` };
-    const data = (await res.json()) as { paired_dashboards?: number };
-    return { ok: true, data: data.paired_dashboards ?? 0 };
+    const data = (await res.json()) as { paired_dashboards?: number; dashboard_paired_at?: string | null };
+    return { ok: true, data: { paired: (data.paired_dashboards ?? 0) > 0, pairedAt: data.dashboard_paired_at ?? null } };
   } catch {
     return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'no connection to server' };
   } finally {

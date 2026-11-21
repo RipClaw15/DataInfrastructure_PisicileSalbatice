@@ -25,12 +25,13 @@ import {
   buildPayload,
   deleteMyData,
   ensureRegistered,
-  getPairedDashboards,
+  getDashboardPairing,
   isMockMode,
   requestPairingCode,
   sendEvent,
   updateDeviceName,
   type EventPayload,
+  type DashboardPairing,
   type PairingCodeResponse,
 } from './src/api';
 import { getDeviceId, getDeviceName } from './src/deviceId';
@@ -55,7 +56,8 @@ type PinSetup = { step: 'enter' | 'confirm'; first?: string; mismatch?: boolean;
 type PairingState =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ready'; data: PairingCodeResponse; before: number }
+  | { kind: 'ready'; data: PairingCodeResponse; before: DashboardPairing | null }
+  | { kind: 'expired' }
   | { kind: 'failed'; reason: string };
 
 export default function App() {
@@ -83,8 +85,8 @@ export default function App() {
   const [deleting, setDeleting] = useState<'idle' | 'deleting' | 'deleted' | string>('idle');
   const [connection, setConnection] = useState<'checking' | 'ok' | 'offline'>('checking');
   const [showDeveloper, setShowDeveloper] = useState(false);
-  /** How many dashboards follow this phone; null until known. Arming needs at least one. */
-  const [paired, setPaired] = useState<number | null>(isMockMode ? 1 : null);
+  /** This phone's dashboard (one at most); null until known. Arming needs one. */
+  const [dashboard, setDashboard] = useState<DashboardPairing | null>(isMockMode ? { paired: true, pairedAt: null } : null);
 
   useEffect(() => {
     let active = true;
@@ -120,17 +122,23 @@ export default function App() {
   const guard = useGuard(deviceId, reading, location, simulateError);
   const busy = sendStatus.kind === 'sending' || sendStatus.kind === 'retrying';
   const canSend = reading !== null && deviceId !== null && !busy;
-  const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed' && (paired ?? 0) > 0;
+  const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed' && dashboard?.paired === true;
 
   // While a code is showing, check every few seconds whether a dashboard has used it.
+  // Codes work for a limited time: once this one has expired, say so instead of showing a code that no longer works.
   useEffect(() => {
     if (pairing.kind !== 'ready') return;
-    const timer = setInterval(refreshPaired, 3000);
+    const timer = setInterval(() => {
+      if (Date.now() >= new Date(pairing.data.expires_at).getTime()) setPairing({ kind: 'expired' });
+      else refreshPaired();
+    }, 3000);
     return () => clearInterval(timer);
-  }, [pairing.kind]);
+  }, [pairing]);
+  // Done once a dashboard used the code: the first one, or a new one replacing the old (its pairing time changes).
   useEffect(() => {
-    if (pairing.kind === 'ready' && paired !== null && paired > pairing.before) setPairing({ kind: 'idle' });
-  }, [paired, pairing]);
+    if (pairing.kind !== 'ready' || !dashboard?.paired) return;
+    if (!pairing.before?.paired || dashboard.pairedAt !== pairing.before.pairedAt) setPairing({ kind: 'idle' });
+  }, [dashboard, pairing]);
   // Arming refused (e.g. the only dashboard was removed): check again what the server says.
   useEffect(() => {
     if (guard.error) refreshPaired();
@@ -191,7 +199,7 @@ export default function App() {
               return;
             }
             setPairing({ kind: 'idle' });
-            setPaired(isMockMode ? 1 : 0);
+            setDashboard(isMockMode ? { paired: true, pairedAt: null } : { paired: false, pairedAt: null });
             setLastPayload(null);
             guard.forgetLastSession();
             setDeleting('deleted');
@@ -206,15 +214,15 @@ export default function App() {
   }
 
   async function refreshPaired() {
-    const result = await getPairedDashboards();
-    if (result.ok) setPaired(result.data);
+    const result = await getDashboardPairing();
+    if (result.ok) setDashboard(result.data);
   }
 
   async function onShowPairingCode() {
     setPairing({ kind: 'loading' });
     const result = await requestPairingCode({ retry: false });
     if (result.ok) {
-      setPairing({ kind: 'ready', data: result.data, before: paired ?? 0 });
+      setPairing({ kind: 'ready', data: result.data, before: dashboard });
     } else {
       setPairing({ kind: 'failed', reason: result.reason });
     }
@@ -242,9 +250,10 @@ export default function App() {
   }
 
   /** The code to pair a dashboard, and the button for it. On the main screen before the first dashboard, in Settings after. */
-  function pairingBlock(idleLabel: string, closable = false) {
+  /** inList: shown inside the Settings list, so no frame of its own, and it can be closed. */
+  function pairingBlock(idleLabel: string, inList = false) {
     return (
-      <View style={styles.card}>
+      <View style={inList ? styles.inlineBlock : styles.card}>
         {pairing.kind === 'ready' && (
           <>
             <Text style={styles.pairingCode}>
@@ -253,6 +262,7 @@ export default function App() {
             <Text style={[styles.small, styles.center]}>Enter this code on the dashboard. It works once, for 10 minutes.</Text>
           </>
         )}
+        {pairing.kind === 'expired' && <Text style={[styles.small, styles.center]}>That code expired.</Text>}
         {pairing.kind === 'failed' && <Text style={[styles.small, styles.statusFailed]}>Couldn't get a code: {pairing.reason}</Text>}
         <Pressable
           onPress={onShowPairingCode}
@@ -265,10 +275,10 @@ export default function App() {
           ]}
         >
           <Text style={pairing.kind === 'ready' ? styles.secondaryText : styles.armText}>
-            {pairing.kind === 'loading' ? 'Getting a code…' : pairing.kind === 'ready' ? 'New code' : idleLabel}
+            {pairing.kind === 'loading' ? 'Getting a code…' : pairing.kind === 'ready' || pairing.kind === 'expired' ? 'New code' : idleLabel}
           </Text>
         </Pressable>
-        {closable && (
+        {inList && (
           <Pressable onPress={() => setPairing({ kind: 'idle' })} style={({ pressed }) => [styles.link, pressed && styles.buttonPressed]}>
             <Text style={styles.linkText}>Close</Text>
           </Pressable>
@@ -339,7 +349,7 @@ export default function App() {
 
         {guard.lastSession && <LastSession session={guard.lastSession} />}
 
-        {paired === 0 ? (
+        {dashboard?.paired === false ? (
           <>
             <View style={styles.intro}>
               <Text style={styles.headline}>Pair a dashboard first</Text>
@@ -349,7 +359,7 @@ export default function App() {
             </View>
             {pairingBlock('Show dashboard code')}
           </>
-        ) : paired === null ? (
+        ) : dashboard === null ? (
           <View style={styles.intro}>
             <Text style={styles.headline}>{connection === 'offline' ? "Can't reach the server" : 'Connecting…'}</Text>
             <Text style={styles.body}>
@@ -378,20 +388,26 @@ export default function App() {
 
         <Text style={styles.section}>Settings</Text>
         <View style={[styles.card, styles.list]}>
-          {(paired ?? 0) > 0 && (
-            <View style={styles.listRow}>
+          {dashboard?.paired && (
+            <View style={[styles.listRow, pairing.kind !== 'idle' && styles.lastRow]}>
               <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>Dashboards</Text>
-                <Text style={styles.small}>{paired === 1 ? '1 paired' : `${paired} paired`}</Text>
+                <Text style={styles.rowLabel}>Dashboard</Text>
+                <Text style={styles.small}>
+                  {pairing.kind !== 'idle'
+                    ? 'Enter the code on the new dashboard. The current one stops following.'
+                    : dashboard.pairedAt
+                      ? `Paired at ${new Date(dashboard.pairedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Paired'}
+                </Text>
               </View>
               {pairing.kind === 'idle' && (
                 <Pressable onPress={onShowPairingCode} style={({ pressed }) => [styles.rowAction, pressed && styles.buttonPressed]}>
-                  <Text style={styles.linkText}>Add</Text>
+                  <Text style={styles.linkText}>Replace</Text>
                 </Pressable>
               )}
             </View>
           )}
-          {(paired ?? 0) > 0 && pairing.kind !== 'idle' && <View style={styles.renameBox}>{pairingBlock('Show dashboard code', true)}</View>}
+          {dashboard?.paired && pairing.kind !== 'idle' && pairingBlock('Show dashboard code', true)}
           <View style={styles.listRow}>
             <View style={styles.rowText}>
               <Text style={styles.rowLabel}>Name</Text>
@@ -627,6 +643,8 @@ const styles = StyleSheet.create({
   rowLabel: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   rowAction: { paddingVertical: 6, paddingLeft: 12 },
   renameBox: { paddingBottom: 12, gap: 10 },
+  // The code inside the Settings list: one divider below it, none between the row and the code.
+  inlineBlock: { gap: 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.line },
   nameInput: {
     borderWidth: 1,
     borderColor: colors.accent,
