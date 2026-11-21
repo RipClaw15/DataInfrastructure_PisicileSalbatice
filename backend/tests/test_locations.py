@@ -15,7 +15,8 @@ MOVED = {"lat": 46.78, "lon": 23.60, "accuracy_m": None}
 
 
 def test_startup_adds_gps_tables_without_losing_readings(client, engine, payload, monkeypatch):
-    created = client.post("/api/events", json=payload).json()
+    client.post(f"{BASE}/arm", json=ARM)
+    created = client.get("/api/events").json()["events"][0]
     # Simulate the existing deployed database before GPS tables were added.
     EventLocation.__table__.drop(engine)
     SessionLocation.__table__.drop(engine)
@@ -73,7 +74,8 @@ def test_latest_gps_ignores_missing_and_out_of_order_fixes(client, payload):
     del payload["location"]
     assert client.post("/api/events", json=payload).status_code == 201
     assert client.get(f"{BASE}/status").json()["last_location"] == MOVED
-    assert "location" not in client.get("/api/events").json()["events"][0]
+    assert client.get("/api/events").json()["events"] == []
+    assert client.get(f"{BASE}/live").json()["location"] is None
 
 
 def test_locations_are_scoped_to_the_phone(client, payload):

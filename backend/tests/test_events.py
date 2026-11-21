@@ -1,7 +1,11 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
+from sqlalchemy.orm import Session
+
+from backend.app.models import Event
 
 SAMPLES = Path(__file__).resolve().parents[2] / "contracts/backend"
 
@@ -11,10 +15,14 @@ def test_round_trip(client, payload):
     response = client.post("/api/events", json=payload)
     assert response.status_code == 201
     created = response.json()
-    assert set(created) == {"id", "device_id", "received_at"}
+    assert set(created) == {"id", "device_id", "received_at", "stored"}
+    assert created["stored"] is False
+    assert created["id"] == 0
     assert created["received_at"].endswith("Z")
-    event = client.get("/api/events").json()["events"][0]
-    assert event == {**payload, **created}
+    assert client.get("/api/events").json() == {"events": []}
+    event = client.get(f"/api/devices/{payload['device_id']}/live").json()
+    assert event["axes"] == payload["axes"]
+    assert event["timestamp"] == payload["timestamp"]
 
 
 @pytest.mark.parametrize("field,value", [
@@ -43,27 +51,36 @@ def test_invalid_limits(client, limit):
 
 
 def test_order_limit_and_utc(client, payload):
-    payload["timestamp"] = "2026-11-20T21:00:00+02:00"
-    assert client.post("/api/events", json=payload).status_code == 201
-    payload["timestamp"] = "2026-11-20T18:00:00Z"
-    client.post("/api/events", json=payload)
+    for device_id, timestamp in [("newer-phone", "2026-11-20T21:00:00+02:00"),
+                                 ("older-phone", "2026-11-20T18:00:00Z")]:
+        assert client.post(f"/api/devices/{device_id}/arm", json={
+            "timestamp": timestamp, "axes": payload["axes"],
+        }).status_code == 200
     events = client.get("/api/events?limit=1").json()["events"]
     assert len(events) == 1
     assert events[0]["timestamp"] == "2026-11-20T19:00:00Z"
 
 
 def test_preserves_reported_magnitude(client, payload):
+    client.post(f"/api/devices/{payload['device_id']}/arm", json={
+        "timestamp": "2026-11-20T18:00:00Z", "axes": {"x": 0, "y": 0, "z": -1},
+    })
     payload["value"] = 99
     assert client.post("/api/events", json=payload).status_code == 201
     assert client.get("/api/events").json()["events"][0]["value"] == 99
 
 
-def test_samples(client):
+def test_existing_history_remains_readable(client, engine):
     samples = json.loads((SAMPLES / "events.json").read_text())["events"]
-    # Replay oldest first; the samples use descending IDs to break equal timestamps.
-    for event in reversed(samples):
-        body = {k: v for k, v in event.items() if k not in {"id", "received_at"}}
-        assert client.post("/api/events", json=body).status_code == 201
+    # Existing, pre-retention history must keep its response shape and ordering.
+    with Session(engine) as db:
+        for event in reversed(samples):
+            db.add(Event(
+                device_id=event["device_id"], event_type=event["event_type"], value=event["value"], unit=event["unit"],
+                **event["axes"], timestamp=datetime.fromisoformat(event["timestamp"]),
+                received_at=datetime.fromisoformat(event["received_at"]),
+            ))
+        db.commit()
     actual = client.get("/api/events").json()["events"]
     strip = lambda e: {k: v for k, v in e.items() if k not in {"id", "received_at"}}
     assert [strip(e) for e in actual] == [strip(e) for e in samples]

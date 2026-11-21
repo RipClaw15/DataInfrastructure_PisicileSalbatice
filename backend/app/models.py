@@ -113,3 +113,13 @@ class EventLocation(Base):
     lat: Mapped[float]
     lon: Mapped[float]
     accuracy_m: Mapped[float | None]
+
+
+class EventSnapshot(Base):
+    """Why a reading was retained. Legacy events have no metadata row."""
+
+    __tablename__ = "event_snapshots"
+
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("arm_sessions.id"), index=True)
+    reason: Mapped[str] = mapped_column(String(32))

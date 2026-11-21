@@ -75,6 +75,8 @@ class EventCreated(BaseModel):
     id: int
     device_id: str
     received_at: datetime
+    # id=0 is an accepted transient reading, with no database row.
+    stored: bool
 
     @field_serializer("received_at")
     def serialize_received_at(self, value):
@@ -84,6 +86,7 @@ class EventCreated(BaseModel):
 class EventResponse(EventRequest):
     id: int
     received_at: datetime
+    snapshot_reason: Literal["armed", "disarmed", "picked_up", "gps_update"] | None = None
 
     @field_serializer("timestamp", "received_at")
     def serialize_time(self, value):

@@ -1,6 +1,45 @@
 # Backend: Implementation Guide (contract v0 + v1)
 
-Everything the backend developer needs. If anything here differs from [`API_CONTRACT.md`](../API_CONTRACT.md), **the contract wins**.
+## Current storage policy: state changes and limited GPS history
+
+The backend now evaluates every POST reading but retains only these snapshots:
+Arm, the first picked-up alert, Disarm, and a limited GPS trail during ALERT.
+Re-arming records the old session ending and the new one starting. Repeated
+Disarm calls do not create extra snapshots. Existing history is not deleted.
+
+- Arm/Disarm snapshots keep the existing accelerometer event shape; their
+  magnitude is calculated from resting axes when no current reading is available.
+- POST /api/events still returns 201 for mobile compatibility. It now includes
+  `stored`: true means `id` identifies a retained event; false means the reading
+  was validated/evaluated but not saved, and `id` is the reserved value 0.
+- GET /api/events returns retained snapshots and legacy history only, with
+  optional `snapshot_reason`: armed, picked_up, disarmed, or gps_update.
+  Dashboard charts are a snapshot history, not a continuous recording.
+- GET /api/devices/{device_id}/live returns the latest accepted reading, or null
+  when a known device has no cached reading. This endpoint is temporary data,
+  not a database history. Status uses the cache for last_seen, online, and GPS.
+- During ALERT, the first GPS fix is saved immediately if the alert had none.
+  Further fixes are saved only when BOTH at least 30 server seconds elapsed and
+  movement is at least 25 metres (or either fix's accuracy radius, if greater).
+  Stale/out-of-order GPS fixes never replace newer retained GPS history.
+- Configure thresholds with ALERT_GPS_INTERVAL_SECONDS and
+  ALERT_GPS_DISTANCE_METERS. No GPS trail is retained while GUARDING or DISARMED.
+- The cache holds one latest reading/GPS fix per phone, at most 2048 phones,
+  expires after 10 minutes without arrivals, and clears on API shutdown. It makes
+  no routine database writes. It assumes the default single-worker deployment;
+  multiple API workers/replicas need a shared ephemeral cache for consistent live
+  values. Guard state and history remain durable regardless of the cache.
+- Startup adds event_snapshots metadata; existing tables and historical readings
+  are preserved. Coordinate storage remains in event_locations/session_locations.
+
+This policy supersedes the store-every-reading behavior in the original v0
+implementation notes below. The shared contract and client-facing documentation
+should be reconciled with the team before other consumers rely on the old
+meaning of a POST receipt or a continuous readings history.
+
+The original payloads and detection rules follow [`API_CONTRACT.md`](../API_CONTRACT.md).
+The explicitly approved storage policy above changes retention and receipt semantics;
+the older implementation notes below describe the initial store-every-reading version.
 
 ## The task
 **The app:** an old phone that guards your stuff. Arm it, walk away, and the dashboard alerts you if it's moved (see [`IDEA.md`](../IDEA.md)).

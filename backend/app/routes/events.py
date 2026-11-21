@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..guard import detect_reading, lock_device
-from ..models import Event, EventLocation
+from ..guard import detect_reading, lock_device, open_session, utc_now
+from ..live import live_telemetry
+from ..models import Alert, Event, EventLocation, EventSnapshot
+from ..retention import save_snapshot, should_save_gps
 from ..schemas import EventCreated, EventRequest, EventResponse, EventsResponse
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -20,21 +22,34 @@ def post_event(payload: EventRequest, db: Database):
     event = Event(
         **payload.model_dump(exclude={"axes", "location"}),
         **payload.axes.model_dump(),
-        received_at=datetime.now(timezone.utc),
+        received_at=utc_now(),
     )
-    db.add(event)
-    if payload.location is not None:
-        db.flush()
-        db.add(EventLocation(event_id=event.id, **payload.location.model_dump()))
-    detect_reading(db, event)
+    alert = detect_reading(db, event)
+    session = open_session(db, payload.device_id)
+    reason = None
+    if alert is not None:
+        reason = "picked_up"
+    elif session is not None and db.scalar(select(Alert.id).where(Alert.session_id == session.id)) is not None:
+        if should_save_gps(db, session, event, payload.location):
+            reason = "gps_update"
+    if reason is not None:
+        save_snapshot(db, event, session, reason, payload.location)
     db.commit()
-    db.refresh(event)
-    return EventCreated(id=event.id, device_id=event.device_id, received_at=event.received_at)
+    if reason is not None:
+        db.refresh(event)
+    receipt_id = event.id if reason is not None else 0
+    live_telemetry.put(EventResponse(
+        **payload.model_dump(), id=receipt_id, received_at=event.received_at,
+    ))
+    return EventCreated(id=receipt_id, device_id=event.device_id,
+                        received_at=event.received_at, stored=reason is not None)
 
 
 @router.get("", response_model=EventsResponse, response_model_exclude_unset=True)
 def get_events(db: Database, limit: Annotated[int, Query(ge=1, le=500)] = 50):
-    events = db.execute(select(Event, EventLocation).outerjoin(EventLocation, Event.id == EventLocation.event_id)
+    events = db.execute(select(Event, EventLocation, EventSnapshot)
+                        .outerjoin(EventLocation, Event.id == EventLocation.event_id)
+                        .outerjoin(EventSnapshot, Event.id == EventSnapshot.event_id)
                         .order_by(Event.timestamp.desc(), Event.id.desc()).limit(limit))
     return EventsResponse(events=[
         EventResponse(
@@ -45,5 +60,6 @@ def get_events(db: Database, limit: Annotated[int, Query(ge=1, le=500)] = 50):
             axes={"x": e.x, "y": e.y, "z": e.z},
             **({"location": {"lat": location.lat, "lon": location.lon, "accuracy_m": location.accuracy_m}}
                if location is not None else {}),
-        ) for e, location in events
+            **({"snapshot_reason": snapshot.reason} if snapshot is not None else {}),
+        ) for e, location, snapshot in events
     ])

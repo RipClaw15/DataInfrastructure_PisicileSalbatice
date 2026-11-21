@@ -4,11 +4,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.main import app
-from backend.app.models import ArmSession, Event
+from backend.app.models import ArmSession
+from backend.app.live import live_telemetry
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLES = ROOT / "contracts/backend"
@@ -122,15 +123,13 @@ def test_table_readings_do_not_alert(client):
     assert client.get(f"{BASE}/alerts").json()["alerts"] == []
 
 
-def test_online_uses_arrival_and_last_seen_uses_newest_timestamp(client, engine):
+def test_online_uses_arrival_and_last_seen_uses_newest_timestamp(client, monkeypatch):
     send(client, (0, 0, -1), "2026-11-20T19:10:30Z")
     send(client, (0, 0, -1), "2026-11-20T19:00:00Z")
     status = client.get(f"{BASE}/status").json()
     assert status["last_seen"] == "2026-11-20T19:10:30Z"
     assert status["online"] is True
-    with Session(engine) as db:
-        db.execute(update(Event).values(received_at=datetime.now(timezone.utc) - timedelta(minutes=6)))
-        db.commit()
+    monkeypatch.setattr("backend.app.guard.utc_now", lambda: datetime.now(timezone.utc) + timedelta(minutes=6))
     assert client.get(f"{BASE}/status").json()["online"] is False
 
 
@@ -177,6 +176,7 @@ def test_alert_limit_validation(client, limit):
 def test_new_client_reads_persisted_guard_state(client):
     client.post(f"{BASE}/arm", json=sample("arm_request.json"))
     send(client, (0, 1, 0))
+    live_telemetry.clear()
     # A different client/session must obtain state from the database.
     # Do not run application lifespan: it uses the production configuration.
     restarted = TestClient(app)

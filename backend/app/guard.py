@@ -4,11 +4,13 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .detection import picked_up_angle
-from .models import Alert, ArmSession, Event, EventLocation, SessionLocation
+from .models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
+from .live import live_telemetry
+from .retention import STATE_SNAPSHOTS, as_utc
 from .schemas import AlertResponse, GuardStatus, Location
 
 
@@ -35,6 +37,8 @@ def open_session(db: Session, device_id: str) -> ArmSession | None:
 
 
 def require_device(db: Session, device_id: str) -> None:
+    if live_telemetry.get(device_id) is not None:
+        return
     has_event = db.scalar(select(Event.id).where(Event.device_id == device_id).limit(1))
     has_session = db.scalar(select(ArmSession.id).where(ArmSession.device_id == device_id).limit(1))
     if has_event is None and has_session is None:
@@ -53,9 +57,12 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
     session = open_session(db, device_id)
     alert = db.scalar(select(Alert).where(Alert.session_id == session.id)) if session else None
     armed_location = db.get(SessionLocation, session.id) if session else None
-    latest_location = db.scalar(select(EventLocation).join(Event, Event.id == EventLocation.event_id)
+    latest_fix = db.execute(select(EventLocation, Event.timestamp).join(Event, Event.id == EventLocation.event_id)
+                                .outerjoin(EventSnapshot, EventSnapshot.event_id == Event.id)
                                 .where(Event.device_id == device_id)
-                                .order_by(Event.timestamp.desc(), Event.id.desc()).limit(1))
+                                .where(or_(EventSnapshot.reason.is_(None), EventSnapshot.reason.not_in(STATE_SNAPSHOTS)))
+                                .order_by(Event.timestamp.desc(), Event.id.desc()).limit(1)).first()
+    latest_location, saved_at = latest_fix if latest_fix else (None, None)
     locations = {}
     if armed_location:
         locations["location"] = Location(lat=armed_location.lat, lon=armed_location.lon,
@@ -65,7 +72,16 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
                                               accuracy_m=latest_location.accuracy_m)
     last_seen, last_received = db.execute(select(
         func.max(Event.timestamp), func.max(Event.received_at),
-    ).where(Event.device_id == device_id)).one()
+    ).outerjoin(EventSnapshot, EventSnapshot.event_id == Event.id)
+      .where(Event.device_id == device_id)
+      .where(or_(EventSnapshot.reason.is_(None), EventSnapshot.reason.not_in(STATE_SNAPSHOTS)))).one()
+    live = live_telemetry.get(device_id)
+    if live:
+        last_seen = max(as_utc(last_seen), live.reading.timestamp) if last_seen else live.reading.timestamp
+        last_received = max(as_utc(last_received), live.received_at) if last_received else live.received_at
+        if live.location is not None:
+            if saved_at is None or live.location_at >= as_utc(saved_at):
+                locations["last_location"] = live.location
     # Online is based on server arrival, not the phone clock. last_seen remains
     # the newest reading timestamp even when readings arrive out of order.
     online = False
@@ -82,7 +98,7 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
     )
 
 
-def detect_reading(db: Session, event: Event) -> None:
+def detect_reading(db: Session, event: Event) -> Alert | None:
     """Called under the device lock; save any alert in the reading transaction."""
     session = open_session(db, event.device_id)
     if session is None:
@@ -93,8 +109,11 @@ def detect_reading(db: Session, event: Event) -> None:
         (session.rest_x, session.rest_y, session.rest_z), (event.x, event.y, event.z),
     )
     if angle is not None:
-        db.add(Alert(
+        alert = Alert(
             device_id=event.device_id, session_id=session.id,
             type="picked_up", timestamp=event.timestamp, angle_deg=angle,
             value=event.value, x=event.x, y=event.y, z=event.z,
-        ))
+        )
+        db.add(alert)
+        return alert
+    return None

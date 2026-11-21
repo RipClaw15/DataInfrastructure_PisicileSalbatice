@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,8 @@ class Settings(BaseSettings):
     database_url: str | None = None
     # Temporary development setting. Override with explicit origins for production.
     cors_origins: str = "*"
+    alert_gps_interval_seconds: float = Field(default=30, gt=0)
+    alert_gps_distance_meters: float = Field(default=25, gt=0)
 
 
 settings = Settings()

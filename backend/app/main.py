@@ -15,16 +15,20 @@ from .routes.me import router as me_router
 from .routes.events import router as events_router
 from .routes.guard import router as guard_router
 from .db import Base
-from .models import Alert, ArmSession, Event, EventLocation, SessionLocation
+from .models import Alert, ArmSession, Event, EventLocation, EventSnapshot, SessionLocation
+from .live import live_telemetry
 
 @asynccontextmanager
 async def lifespan(app):
     if settings.database_url:
         Base.metadata.create_all(
             get_engine(), tables=[Event.__table__, ArmSession.__table__, Alert.__table__,
-                                 EventLocation.__table__, SessionLocation.__table__],
+                                 EventLocation.__table__, SessionLocation.__table__, EventSnapshot.__table__],
         )
-    yield
+    try:
+        yield
+    finally:
+        live_telemetry.clear()
 
 
 app = FastAPI(title="StayPut API", version="0.1.0", lifespan=lifespan)
