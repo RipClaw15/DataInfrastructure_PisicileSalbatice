@@ -1,8 +1,8 @@
 {
-  "device_id": "demo-phone-01",
+  "device_id": "phone-z6x91yqg",
   "state": "DISARMED",
   "armed_at": null,
-  "last_seen": "2026-11-20T19:10:30Z",
+  "last_seen": "2026-11-21T09:57:52Z",
   "online": true,
   "last_alert": null
 }

@@ -10,3 +10,6 @@ export function timeAgo(iso: string, now: number): string {
 
 export const formatTime = (value: Date | string) =>
     new Date(value).toLocaleTimeString([], { hour12: false })
+
+export const formatHourMinute = (value: Date | string) =>
+    new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })

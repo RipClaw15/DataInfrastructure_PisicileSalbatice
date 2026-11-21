@@ -1,12 +1,12 @@
 import { Activity, Gauge, Smartphone, Waves } from 'lucide-react'
-import type { Me, Reading } from '../api/types.ts'
+import type { DeviceStatus, Reading } from '../api/types.ts'
 import { useNow } from '../hooks/useNow.ts'
-import { STILL_G, summarize } from '../utils/stats.ts'
+import { MOVING_THRESHOLD_G, STILL_G, summarize } from '../utils/stats.ts'
 import { timeAgo } from '../utils/time.ts'
 import KpiCard from './KpiCard.tsx'
 
 type KpiRowProps = {
-    me: Me | null
+    status: DeviceStatus | null
     events: Reading[] | null
 }
 
@@ -14,7 +14,7 @@ const DASH = '—'
 const delta = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(3)}`
 const Unit = () => <span className="ml-1 text-base text-muted">g</span>
 
-export default function KpiRow({ me, events }: KpiRowProps) {
+export default function KpiRow({ status, events }: KpiRowProps) {
     const now = useNow()
     const stats = events && events.length > 0 ? summarize(events) : null
 
@@ -22,28 +22,28 @@ export default function KpiRow({ me, events }: KpiRowProps) {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiCard
                 label="Phone"
-                hint="Online state is reported by the backend"
+                hint="Online means the phone sent a reading in the last 5 minutes."
                 icon={<Smartphone size={16} />}
                 value={
-                    me ? (
-                        <span className={`inline-flex items-center gap-2 ${me.online ? 'text-ok' : 'text-warn'}`}>
+                    status ? (
+                        <span className={`inline-flex items-center gap-2 ${status.online ? 'text-ok' : 'text-warn'}`}>
                             <span className="size-2 rounded-full bg-current" />
-                            {me.online ? 'Online' : 'Offline'}
+                            {status.online ? 'Online' : 'Offline'}
                         </span>
                     ) : (
                         DASH
                     )
                 }
                 footer={
-                    me
-                        ? `${me.last_seen ? timeAgo(me.last_seen, now) : DASH} · ${me.device_name ?? me.device_id}`
+                    status
+                        ? `${status.last_seen ? timeAgo(status.last_seen, now) : DASH} · ${status.device_id}`
                         : DASH
                 }
             />
 
             <KpiCard
                 label="Latest"
-                hint="Acceleration magnitude of the newest reading. A still phone is about 1 g"
+                hint="g measures how hard the phone is pushed; 1 g is Earth's gravity. A phone lying still reads about 1 g, and moving it pushes the number away from 1."
                 icon={<Activity size={16} />}
                 value={
                     stats ? (
@@ -60,7 +60,7 @@ export default function KpiRow({ me, events }: KpiRowProps) {
 
             <KpiCard
                 label="Moving"
-                hint="Readings more than 0.15 g away from still, out of the readings shown"
+                hint={`How many of the ${stats ? `last ${stats.total}` : 'recent'} readings were more than ${MOVING_THRESHOLD_G} g away from 1 g. Higher means the phone was moved more.`}
                 icon={<Waves size={16} />}
                 value={stats ? `${stats.moving}/${stats.total}` : DASH}
                 footer={
@@ -77,7 +77,7 @@ export default function KpiRow({ me, events }: KpiRowProps) {
 
             <KpiCard
                 label="Peak"
-                hint="Highest magnitude among the readings shown"
+                hint="The strongest reading in that window. Holding the phone stays near 1 g; shaking reaches 2–3 g or more."
                 icon={<Gauge size={16} />}
                 value={
                     stats ? (
