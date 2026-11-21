@@ -38,7 +38,7 @@ export default function App() {
       simulateError,
       onRetry: (attempt, of) => setSendStatus({ kind: 'retrying', attempt, of }),
     });
-    setSendStatus(result.ok ? { kind: 'sent', id: result.response.id } : { kind: 'failed', reason: result.reason });
+    setSendStatus(result.ok ? { kind: 'sent', id: result.data.id } : { kind: 'failed', reason: result.reason });
   }
 
   return (
