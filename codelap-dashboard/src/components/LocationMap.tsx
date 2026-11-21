@@ -45,7 +45,7 @@ export default function LocationMap({ location, label, alert = false }: Location
                     ) : 'Waiting for location…'}
                 </span>
             </div>
-            <div className="h-64 w-full">
+            <div className="h-96 w-full">
                 <MapContainer
                     center={location ? [location.lat, location.lon] : [0, 0]}
                     zoom={location ? 17 : 2}
