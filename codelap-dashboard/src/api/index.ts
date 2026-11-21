@@ -97,7 +97,11 @@ const statusFixtures = { alert: statusAlert, guarding: statusGuarding, disarmed:
 function fixtureStatus(): DeviceStatus {
     const key = new URLSearchParams(window.location.search).get('state') ?? 'alert'
     const fixture = statusFixtures[key as keyof typeof statusFixtures] ?? statusAlert
-    return fixture as DeviceStatus
+    const status = { ...fixture } as DeviceStatus
+    if (status.state === 'ALERT') {
+        status.last_location = { lat: 46.7712, lon: 23.6236, accuracy_m: 15 }
+    }
+    return status
 }
 
 export async function getStatus(deviceId: string): Promise<DeviceStatus> {

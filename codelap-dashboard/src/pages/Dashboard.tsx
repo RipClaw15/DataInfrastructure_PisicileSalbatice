@@ -7,6 +7,7 @@ import KpiRow from '../components/KpiRow.tsx'
 import ReadingsPanel from '../components/ReadingsPanel.tsx'
 import StatusBanner from '../components/StatusBanner.tsx'
 import { usePolling } from '../hooks/usePolling.ts'
+import LocationMap from "../components/LocationMap.tsx";
 
 type DashboardProps = {
     onUnpair: () => void
@@ -35,6 +36,17 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
         hasDevice,
     )
 
+    const statusData = status.data
+    const liveLocation = statusData?.last_location ?? null
+    const armedLocation = statusData?.location ?? null
+
+    const shownLocation =
+        statusData?.state === 'ALERT' && liveLocation
+            ? { location: liveLocation, label: 'Where the phone is now', alert: true }
+            : statusData?.state === 'GUARDING' && armedLocation
+                ? { location: armedLocation, label: 'Armed at', alert: false }
+                : null
+
     const backendDown = events.error !== null || status.error !== null || alerts.error !== null
     const alertList = alerts.data?.alerts ?? []
 
@@ -55,6 +67,13 @@ export default function Dashboard({ onUnpair }: DashboardProps) {
                 armedAt={armed ? status.data?.armed_at ?? null : null}
                 alerts={alertList}
             />
+            {shownLocation && (
+                <LocationMap
+                    location={shownLocation.location}
+                    label={shownLocation.label}
+                    alert={shownLocation.alert}
+                />
+            )}
             <AlertHistory alerts={alerts.data ? alertList : null} />
         </main>
     )

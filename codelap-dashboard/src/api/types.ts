@@ -35,6 +35,12 @@ export interface Alert {
     axes: { x: number; y: number; z: number }
 }
 
+export interface Location {
+    lat: number
+    lon: number
+    accuracy_m: number | null
+}
+
 export interface DeviceStatus {
     device_id: string
     state: GuardState
@@ -42,6 +48,8 @@ export interface DeviceStatus {
     last_alert: Alert | null
     online: boolean
     last_seen: string | null
+    location?: Location | null
+    last_location?: Location | null
 }
 
 export interface AlertsResponse {
