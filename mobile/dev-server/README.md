@@ -47,3 +47,16 @@ in the same shape as `GET /api/events` (without `received_at`, which wasn't logg
 | #144–#162 | `phone-irbmii9a` | shaken in bursts (up to 3.5 g), held in between |
 | #163–#183 | `phone-irbmii9a` | shaken violently (up to 6.7 g) |
 | #186–#189 | `phone-ve5xkfoz` | lying on a table, face up (z ≈ -0.95) |
+
+## Captured guard session
+[`captured-guard-session.json`](captured-guard-session.json) is a real guard test (2026-11-21, one phone), with the expected result:
+
+| Readings | What happened | Angle from rest | State |
+|---|---|---|---|
+| #1–#10 | lying still on a table | 0.0–0.1° | `GUARDING` |
+| #11 | first touch | 7.6° (under 15°) | `GUARDING` |
+| #12 | picked up | **56.0°** → one `picked_up` alert | `ALERT` |
+| #13–#24 | handled and turned | 25–121° | `ALERT` (no new alerts) |
+| #25–#31 | put back where it was | 0.1–0.2° | still `ALERT` |
+
+It contains the `arm_request`, all 31 readings, and `expected` (the alert and the state after each reading), so it can be replayed as a test.
