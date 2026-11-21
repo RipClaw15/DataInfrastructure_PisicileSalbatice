@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Circle, Marker, Popup } from 'react-leaflet'
+import { useEffect } from 'react'
+import { MapContainer, TileLayer, Circle, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Location } from '../api/types.ts'
@@ -11,9 +12,23 @@ const markerIcon = L.divIcon({
 })
 
 type LocationMapProps = {
-    location: Location
+    location: Location | null
     label: string
     alert?: boolean
+}
+
+function FollowLocation({ location }: { location: Location | null }) {
+    const map = useMap()
+    const lat = location?.lat
+    const lon = location?.lon
+
+    useEffect(() => {
+        if (lat !== undefined && lon !== undefined) {
+            map.setView([lat, lon], 17)
+        }
+    }, [map, lat, lon])
+
+    return null
 }
 
 export default function LocationMap({ location, label, alert = false }: LocationMapProps) {
@@ -22,14 +37,18 @@ export default function LocationMap({ location, label, alert = false }: Location
             <div className="flex items-center justify-between px-4 py-2">
                 <h2 className="text-muted">{label}</h2>
                 <span className="text-xs text-muted tabular-nums">
-                    {location.lat.toFixed(5)}, {location.lon.toFixed(5)}
-                    {location.accuracy_m !== null && ` · ±${Math.round(location.accuracy_m)} m`}
+                    {location ? (
+                        <>
+                            {location.lat.toFixed(5)}, {location.lon.toFixed(5)}
+                            {location.accuracy_m !== null && ` · ±${Math.round(location.accuracy_m)} m`}
+                        </>
+                    ) : 'Waiting for location…'}
                 </span>
             </div>
             <div className="h-64 w-full">
                 <MapContainer
-                    center={[location.lat, location.lon]}
-                    zoom={17}
+                    center={location ? [location.lat, location.lon] : [0, 0]}
+                    zoom={location ? 17 : 2}
                     scrollWheelZoom={false}
                     style={{ height: '100%', width: '100%' }}
                 >
@@ -37,7 +56,8 @@ export default function LocationMap({ location, label, alert = false }: Location
                         attribution='&copy; OpenStreetMap contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    {location.accuracy_m !== null && (
+                    <FollowLocation location={location} />
+                    {location && location.accuracy_m !== null && (
                         <Circle
                             center={[location.lat, location.lon]}
                             radius={location.accuracy_m}
@@ -47,9 +67,9 @@ export default function LocationMap({ location, label, alert = false }: Location
                             }}
                         />
                     )}
-                    <Marker position={[location.lat, location.lon]} icon={markerIcon}>
+                    {location && <Marker position={[location.lat, location.lon]} icon={markerIcon}>
                         <Popup>{label}</Popup>
-                    </Marker>
+                    </Marker>}
                 </MapContainer>
             </div>
         </section>
