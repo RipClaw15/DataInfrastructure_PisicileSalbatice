@@ -1,5 +1,10 @@
 # Mobile app
 
+For a mentor demo without installing Node.js locally, use the root
+[Docker quick start](../README.md#quick-start-with-docker-mentor-demo). It runs
+Expo, the API/dashboard, and PostgreSQL; you only need Docker and Expo Go on
+your phone. The instructions below are for running Expo directly.
+
 Expo (React Native) app that turns a phone into a motion alarm: it reads the accelerometer, and while **armed** it sends a reading whenever the phone moves (plus a heartbeat every 30 s) so the server can tell when it's picked up.
 
 ## What you need

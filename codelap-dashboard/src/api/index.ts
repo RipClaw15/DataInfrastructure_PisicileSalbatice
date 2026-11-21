@@ -65,7 +65,7 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
         ? AbortSignal.any([init.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
         : AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     try {
-        const res = await fetch(`${API_URL}${path}`, { ...init, headers, signal })
+        const res = await fetch(`${API_URL.replace(/\/+$/, '')}${path}`, { ...init, headers, signal })
         if (res.status === 401 && auth) {
             clearToken()
             throw new UnauthorizedError()

@@ -13,3 +13,7 @@ venv
 .DS_Store
 *.zip
 *.pptx
+
+**/.expo
+**/.git
+**/npm-debug.log*
