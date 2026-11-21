@@ -1,6 +1,6 @@
 # Mobile app
 
-Expo (React Native) app that turns a phone into a motion alarm: it reads the accelerometer, and while **armed** it sends a reading every second so the server can tell when the phone is moved.
+Expo (React Native) app that turns a phone into a motion alarm: it reads the accelerometer, and while **armed** it sends a reading whenever the phone moves (plus a heartbeat every 30 s) so the server can tell when it's picked up.
 
 ## What you need
 - **Node 26 LTS** (`nvm use` picks it up from `.nvmrc`)
@@ -58,13 +58,21 @@ On iPhone, allow **Local Network** access for Expo Go when asked.
 You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **LIVE: <url>**.
 
 - **Send reading:** sends one reading. The app shows `Sent ✓ id …` and the dummy server prints it.
-- **Arm:** tap Arm, then put the phone down. It shows **PUT IT DOWN** and arms only once it has been lying still for 2 seconds (at least 5 seconds after the tap),
-  so the resting position is where it lies, not where you held it. Then the screen shows **GUARDING**, a timer, and sent/failed counters, and stays awake.
-  The phone now sends a reading every second; the dummy server prints `== ARMED` and how far each reading has turned from the resting position.
-  Pick the phone up: the server prints `!! ALERT picked_up …`, and within a second the phone turns **red: MOVED** with the time.
-  It stays red (the alarm stays on) until you tap **Disarm**. Mock mode never turns red: alerts need the dummy server.
-  After the alert, every reading carries the live GPS location: the red screen shows "Now at …" and the server prints `gps=…`.
+- **Arm:** the first time, set a 4-digit **PIN**: it's the only way to disarm. Then put the phone down (face down works).
+  It shows **PUT IT DOWN** and arms only once it has been lying still for 2 seconds (at least 5 seconds after the tap),
+  so the resting position is where it lies, not where you held it.
+- **Stealth (on by default):** as soon as it arms, the screen goes **pitch black** at minimum brightness, so it looks dead ("PUT IT DOWN" shows "Tap + PIN to disarm" beforehand).
+  It looks the same before and after an alert. Tap the screen to show the dim PIN pad; the right PIN disarms, a wrong one just clears.
+  After disarming, the main screen says what happened while you were away.
+  Turn **Stealth** off to see the **GUARDING** screen (timer, sent/failed) and the red **MOVED** screen while testing; Disarm still asks for the PIN.
+- **What it sends while armed:** one reading right away, then a reading only when the phone turns more than 2° (at most one per second),
+  plus a heartbeat every 30 s. The dummy server prints `== ARMED` and how far each reading has turned from the resting position.
+  Pick the phone up: the server prints `!! ALERT picked_up …`. From then on the phone sends a reading whenever its location changes (every 10 m or so),
+  with the live GPS location (`gps=…` on the server; "Now at …" on the MOVED screen). The alarm stays on until you disarm.
+  Mock mode never raises an alert: alerts need the dummy server.
 - **Keep the app open while armed:** phones pause apps in the background, so locking the phone or leaving the app stops the readings. The guarding screen keeps the phone from locking by itself.
+  Tip: turn on Do Not Disturb, so notifications don't light up the black screen.
+  In Expo Go, its gear button (top right) stays on the black screen: Expo Go can't hide it. A development or release build doesn't have it.
 
 ## Troubleshooting
 | Problem | Fix |
@@ -76,14 +84,18 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 | *"You need to be signed in to Expo Go and Expo CLI"* | Step 2: same Expo account on laptop and phone. |
 | Send says `failed: no connection to server` | The dummy server isn't running, or `.env` is out of date: restart the server and follow what it prints. Then open its address + `/health` in the phone's browser. |
 | Readings stop while armed | The phone was locked or the app left the screen. Open it again and it carries on. Keep it open on the guarding screen. |
+| Forgot the PIN | Close the app (swipe it away) and open it again, then **Change PIN** on the main screen. |
+| Screen stays dark after closing the app while armed (iPhone) | iOS keeps the app's brightness until the phone locks. Lock and unlock it, or raise the brightness. |
 | *"Accelerometer not available"* | You're on a simulator. Use a real phone. |
 
 ## Files
 | Path | What |
 |---|---|
-| `App.tsx` | Main screen: live readings, Arm and Send buttons, status, last payload |
-| `src/GuardScreen.tsx` | The dark "GUARDING" screen shown while armed (keeps the screen awake) |
-| `src/useGuard.ts` | Arm/disarm and the one-reading-per-second auto-send |
+| `App.tsx` | Main screen: Arm, Stealth switch, PIN setup, live readings, Send button, last payload |
+| `src/GuardScreen.tsx` | Shown while armed: PUT IT DOWN, then the black stealth screen (or GUARDING / MOVED with Stealth off); keeps the screen awake |
+| `src/PinPad.tsx`, `src/pin.ts` | The PIN pad, and the PIN saved on the phone |
+| `src/useGuard.ts` | Arm/disarm and what gets sent while armed (on movement, heartbeat, location after an alert) |
+| `src/theme.ts` | Colours: the StayPut palette, the same tokens as the dashboard (`codelap-dashboard/src/index.css`) |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
 | `src/location.ts` | GPS hook (`expo-location`, while the app is open); sent with Arm, with Send reading, and with every reading after an alert |
 | `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |

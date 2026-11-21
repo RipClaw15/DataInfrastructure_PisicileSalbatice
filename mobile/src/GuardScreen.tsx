@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as Brightness from 'expo-brightness';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Alert } from './api';
 import type { GeoPoint } from './location';
+import { PinPad } from './PinPad';
+import { colors, stealth } from './theme';
 import type { AutoSendStats, GuardPhase } from './useGuard';
+
+/** The PIN pad hides again after this long without a key press. */
+const PAD_MS = 10_000;
 
 type Props = {
   phase: GuardPhase;
@@ -16,18 +22,23 @@ type Props = {
   settleSecondsLeft: number;
   isStill: boolean;
   alert: Alert | null;
+  /** Stealth: a black screen that looks dead, the same before and after an alert. Off: the GUARDING / MOVED screens (development). */
+  stealth: boolean;
+  pin: string;
   onCancel: () => void;
+  /** Called after the right PIN: the only way to disarm. */
   onDisarm: () => void;
 };
 
 /** Shown from tapping Arm until disarmed. Mounted only then, so the screen stays awake only while guarding. */
 export function GuardScreen(props: Props) {
   useKeepAwake();
-  return props.phase === 'settling' || props.phase === 'arming' ? <ArmingDelay {...props} /> : <Guarding {...props} />;
+  if (props.phase === 'settling' || props.phase === 'arming') return <ArmingDelay {...props} />;
+  return props.stealth ? <Stealth {...props} /> : <Guarding {...props} />;
 }
 
 /** The arming delay: put the phone down and let it settle. */
-function ArmingDelay({ phase, settleSecondsLeft, isStill, onCancel }: Props) {
+function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, onCancel }: Props) {
   const message =
     phase === 'arming' ? 'Arming…' : settleSecondsLeft > 0 ? `Arming in ${settleSecondsLeft}` : isStill ? 'Arming…' : 'Hold still…';
 
@@ -36,32 +47,67 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, onCancel }: Props) {
       <StatusBar style="light" />
       <View style={styles.center}>
         <Text style={[styles.title, styles.settling]}>PUT IT DOWN</Text>
-        <Text style={styles.elapsed}>{message}</Text>
-        <Text style={styles.hint}>Lay the phone on your stuff. It arms once it's been lying still for 2 seconds.</Text>
+        <Text style={styles.big}>{message}</Text>
+        {isStealth && <Text style={styles.hint}>Tap + PIN to disarm</Text>}
       </View>
       <Pressable
         onPress={onCancel}
         disabled={phase === 'arming'}
-        style={({ pressed }) => [styles.button, styles.cancelButton, (pressed || phase === 'arming') && styles.buttonPressed]}
+        style={({ pressed }) => [styles.button, styles.secondaryButton, (pressed || phase === 'arming') && styles.buttonPressed]}
       >
-        <Text style={styles.buttonText}>Cancel</Text>
+        <Text style={styles.secondaryText}>Cancel</Text>
       </Pressable>
     </View>
   );
 }
 
-function Guarding({ phase, armedAt, stats, magnitude, location, alert, onDisarm }: Props) {
+/**
+ * Pitch black at minimum brightness from the moment it arms: on AMOLED the pixels are off, so the phone looks dead.
+ * Nothing shows whether it's guarding or has raised an alert. A tap shows only the dim PIN pad.
+ */
+function Stealth({ pin, onDisarm }: Props) {
+  const [padUntil, setPadUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  useMinimumBrightness();
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, []);
+
+  const showPad = now < padUntil;
+  const keepPadOpen = () => {
+    setPadUntil(Date.now() + PAD_MS);
+    setNow(Date.now());
+  };
+
+  return (
+    <Pressable style={styles.stealth} onPress={keepPadOpen}>
+      <StatusBar hidden />
+      {showPad && <PinPad color={stealth.pin} onKey={keepPadOpen} onComplete={(entered) => entered === pin && onDisarm()} />}
+    </Pressable>
+  );
+}
+
+/** Development screen (stealth off): shows the state; Disarm still needs the PIN. */
+function Guarding({ phase, armedAt, stats, magnitude, location, alert, pin, onDisarm }: Props) {
   const elapsed = useElapsed(armedAt);
+  const [askPin, setAskPin] = useState(false);
   const disarming = phase === 'disarming';
 
   return (
     <View style={[styles.screen, alert && styles.alertScreen]}>
       <StatusBar style="light" />
-      {alert ? (
+      {askPin ? (
+        <View style={styles.center}>
+          <Text style={styles.hint}>Enter your PIN to disarm</Text>
+          <PinPad color={colors.ink} pressedColor={colors.card} onComplete={(entered) => entered === pin && onDisarm()} />
+        </View>
+      ) : alert ? (
         <View style={styles.center}>
           <Text style={[styles.title, styles.alertTitle]}>MOVED</Text>
-          <Text style={styles.alertTime}>{new Date(alert.timestamp).toLocaleTimeString()}</Text>
-          <Text style={styles.alertHint}>
+          <Text style={[styles.big, styles.alertText]}>{new Date(alert.timestamp).toLocaleTimeString()}</Text>
+          <Text style={[styles.hint, styles.alertText]}>
             Picked up ({Math.round(alert.angle_deg)}° from where it lay). The alarm stays on until you disarm.
           </Text>
           <Text style={styles.alertLocation}>{location ? `Now at ${formatLocation(location)}` : 'No GPS fix'}</Text>
@@ -69,7 +115,7 @@ function Guarding({ phase, armedAt, stats, magnitude, location, alert, onDisarm 
       ) : (
         <View style={styles.center}>
           <Text style={styles.title}>GUARDING</Text>
-          <Text style={styles.elapsed}>{elapsed}</Text>
+          <Text style={styles.big}>{elapsed}</Text>
           <Text style={styles.hint}>Leave the phone where it is. Keep the app open.</Text>
         </View>
       )}
@@ -82,11 +128,11 @@ function Guarding({ phase, armedAt, stats, magnitude, location, alert, onDisarm 
       {stats.lastError && <Text style={styles.error}>Last send failed: {stats.lastError}</Text>}
 
       <Pressable
-        onPress={onDisarm}
+        onPress={() => setAskPin((v) => !v)}
         disabled={disarming}
-        style={({ pressed }) => [styles.button, alert && styles.alertButton, (pressed || disarming) && styles.buttonPressed]}
+        style={({ pressed }) => [styles.button, styles.secondaryButton, (pressed || disarming) && styles.buttonPressed]}
       >
-        <Text style={styles.buttonText}>{disarming ? 'Disarming…' : 'Disarm'}</Text>
+        <Text style={styles.secondaryText}>{disarming ? 'Disarming…' : askPin ? 'Back' : 'Disarm'}</Text>
       </Pressable>
     </View>
   );
@@ -103,6 +149,26 @@ function Stat({ label, value, warn = false }: { label: string; value: string; wa
 
 function formatLocation({ lat, lon, accuracy_m }: GeoPoint): string {
   return accuracy_m === null ? `${lat}, ${lon}` : `${lat}, ${lon} (±${accuracy_m} m)`;
+}
+
+/** Dims the screen while mounted and puts the previous brightness back afterwards (iOS keeps it otherwise). */
+function useMinimumBrightness() {
+  useEffect(() => {
+    let previous: number | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        previous = await Brightness.getBrightnessAsync();
+        if (!cancelled) await Brightness.setBrightnessAsync(0);
+      } catch {
+        // Not available: the black screen alone still looks dead on AMOLED.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (previous !== null) Brightness.setBrightnessAsync(previous).catch(() => {});
+    };
+  }, []);
 }
 
 /** "mm:ss" (or "h:mm:ss") since armedAt, updated every second. */
@@ -123,26 +189,26 @@ function useElapsed(since: string | null): string {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0b1220', padding: 24, paddingTop: 72, paddingBottom: 48 },
+  screen: { flex: 1, backgroundColor: colors.page, padding: 24, paddingTop: 72, paddingBottom: 48 },
+  stealth: { flex: 1, backgroundColor: stealth.black, alignItems: 'center', justifyContent: 'center', gap: 36 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { color: '#3ebd93', fontSize: 44, fontWeight: '800', letterSpacing: 4 },
-  settling: { color: '#f0b429', fontSize: 36 },
-  alertScreen: { backgroundColor: '#b42318' },
-  alertTitle: { color: '#fff', fontSize: 56 },
-  alertTime: { color: '#fff', fontSize: 40, fontWeight: '300', fontVariant: ['tabular-nums'] },
-  alertHint: { color: '#fde2e1', fontSize: 15, textAlign: 'center' },
-  alertLocation: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
-  alertButton: { backgroundColor: '#1f2933' },
-  elapsed: { color: '#e4e7eb', fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
-  hint: { color: '#9aa5b1', fontSize: 15, textAlign: 'center' },
+  title: { color: colors.ok, fontSize: 44, fontWeight: '800', letterSpacing: 4 },
+  settling: { color: colors.accent, fontSize: 36 },
+  big: { color: colors.ink, fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  hint: { color: colors.muted, fontSize: 15, textAlign: 'center' },
+  // Like the dashboard's ALERT banner.
+  alertScreen: { backgroundColor: colors.alertSoft },
+  alertTitle: { color: colors.alert, fontSize: 56 },
+  alertText: { color: colors.alert },
+  alertLocation: { color: colors.ink, fontSize: 17, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
   stats: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   stat: { alignItems: 'center', flex: 1 },
-  statValue: { color: '#e4e7eb', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  statLabel: { color: '#7b8794', fontSize: 12, marginTop: 2 },
-  warn: { color: '#f0b429' },
-  error: { color: '#f0b429', fontSize: 13, textAlign: 'center', marginBottom: 12 },
-  button: { backgroundColor: '#d64545', borderRadius: 14, paddingVertical: 18, alignItems: 'center' },
-  cancelButton: { backgroundColor: '#3e4c59' },
-  buttonPressed: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  statValue: { color: colors.ink, fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  warn: { color: colors.warn },
+  error: { color: colors.warn, fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  button: { borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
+  secondaryButton: { borderWidth: 1, borderColor: colors.line },
+  secondaryText: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  buttonPressed: { opacity: 0.6 },
 });

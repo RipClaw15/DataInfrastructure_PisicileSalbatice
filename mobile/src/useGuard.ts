@@ -5,8 +5,18 @@ import type { GeoPoint } from './location';
 import { angleDeg, meanAxes, type Axes } from './motion';
 import { utcNow, type Reading } from './sensor';
 
-const AUTO_SEND_INTERVAL_MS = 1000;
-const STATUS_POLL_INTERVAL_MS = 1000;
+/**
+ * While armed the phone sends only what's worth storing:
+ * - a reading as soon as it turns more than MOVE_SEND_DEG from the last one sent (at most one per second),
+ * - a heartbeat every HEARTBEAT_MS, so the server can tell "lying still" from "gone silent",
+ * - in ALERT, a reading whenever the location changes (the phone reports a new position every 10 m).
+ * Measured: on a table the direction wobbles 0.1-0.65 deg; picking the phone up turns it 25 deg or more.
+ */
+const MOVE_SEND_DEG = 2;
+const MIN_SEND_GAP_MS = 1000;
+const HEARTBEAT_MS = 30_000;
+/** The phone also asks for the state right after sending a movement, so an alert shows up at once. */
+const STATUS_POLL_INTERVAL_MS = 10_000;
 /** Arming delay: time to put the phone down after tapping Arm. */
 const SETTLE_MIN_MS = 5000;
 /**
@@ -25,18 +35,22 @@ export type AutoSendStats = {
   lastError: string | null;
 };
 
+/** What happened in the last armed session, shown after disarming. */
+export type SessionSummary = { armedAt: string; alert: Alert | null };
+
 const EMPTY_STATS: AutoSendStats = { sent: 0, failed: 0, lastId: null, lastError: null };
 
 type Sample = { at: number; axes: Axes };
+type Sent = { at: number; axes: Axes; location: GeoPoint | null };
 
 /**
- * Arm/disarm the phone (contract v1) and, while armed, send the current reading every second.
+ * Arm/disarm the phone (contract v1) and, while armed, send readings by the rules above.
  *
  * Arming waits until the phone has been put down and lies still, then uses the average of
  * the still readings as the resting position. Otherwise a phone armed in the hand would
  * raise "picked up" the moment it's put on the table.
  *
- * Auto-send doesn't retry: a failed reading is simply replaced by the next one.
+ * Sends don't retry: the next movement or heartbeat follows anyway.
  */
 export function useGuard(deviceId: string | null, reading: Reading | null, location: GeoPoint | null, simulateError: boolean) {
   const [phase, setPhase] = useState<GuardPhase>('disarmed');
@@ -47,15 +61,22 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
   const [isStill, setIsStill] = useState(false);
   /** Set when the server reports ALERT for this session (the server decides what counts as moved). */
   const [alert, setAlert] = useState<Alert | null>(null);
+  const [lastSession, setLastSession] = useState<SessionSummary | null>(null);
 
-  // The intervals and effects below read the newest values through refs instead of restarting every 100 ms.
+  // The effects below read the newest values through refs instead of restarting every 100 ms.
   const readingRef = useRef(reading);
   readingRef.current = reading;
   const locationRef = useRef(location);
   locationRef.current = location;
   const simulateErrorRef = useRef(simulateError);
   simulateErrorRef.current = simulateError;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const alertRef = useRef(alert);
+  alertRef.current = alert;
   const samplesRef = useRef<Sample[]>([]);
+  const lastSentRef = useRef<Sent | null>(null);
+  const sendingRef = useRef(false);
 
   // Settling: collect readings until the phone has been still long enough, then arm.
   useEffect(() => {
@@ -76,43 +97,66 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     }
   }, [phase, reading, settleStartedAt]);
 
-  const alertRef = useRef(alert);
-  alertRef.current = alert;
+  /** Sends the current reading, with the live location once in ALERT (the phone may be on the move). */
+  async function sendReading(checkStatusAfter: boolean) {
+    const current = readingRef.current;
+    if (!deviceId || !current || sendingRef.current) return;
+    sendingRef.current = true;
+    const liveLocation = alertRef.current ? locationRef.current : null;
+    lastSentRef.current = { at: Date.now(), axes: { x: current.x, y: current.y, z: current.z }, location: liveLocation };
+    const result = await sendEvent(buildPayload(deviceId, current, liveLocation), {
+      retry: false,
+      simulateError: simulateErrorRef.current,
+    });
+    sendingRef.current = false;
+    setStats((s) =>
+      result.ok
+        ? { ...s, sent: s.sent + 1, lastId: result.data.id, lastError: null }
+        : { ...s, failed: s.failed + 1, lastError: result.reason },
+    );
+    if (checkStatusAfter) await checkStatus();
+  }
 
-  // Armed: send the current reading every second; once in ALERT, with the live location (the phone may be on the move).
+  /** Asks the server whether it has raised an alert. */
+  async function checkStatus() {
+    if (!deviceId) return;
+    const result = await getStatus(deviceId);
+    if (phaseRef.current !== 'armed') return;
+    if (result.ok && result.data.state === 'ALERT' && result.data.last_alert) {
+      setAlert(result.data.last_alert);
+    }
+  }
+
+  // Armed, not yet alerted: send as soon as the phone turns away from the last reading sent.
+  useEffect(() => {
+    const last = lastSentRef.current;
+    if (phase !== 'armed' || alert || !reading || !last) return;
+    if (Date.now() - last.at >= MIN_SEND_GAP_MS && angleDeg(reading, last.axes) > MOVE_SEND_DEG) {
+      void sendReading(true);
+    }
+  }, [phase, alert, reading]);
+
+  // In ALERT: send whenever the location changes (right away for the first one).
+  useEffect(() => {
+    if (phase !== 'armed' || !alert || !location) return;
+    const last = lastSentRef.current?.location;
+    if (last && last.lat === location.lat && last.lon === location.lon) return;
+    void sendReading(false);
+  }, [phase, alert, location]);
+
+  // Armed: a first reading right away, then heartbeats and a status check now and then.
   useEffect(() => {
     if (phase !== 'armed' || !deviceId) return;
-    let inFlight = false;
-    const timer = setInterval(async () => {
-      const current = readingRef.current;
-      if (inFlight || !current) return;
-      inFlight = true;
-      const location = alertRef.current ? locationRef.current : null;
-      const result = await sendEvent(buildPayload(deviceId, current, location), { retry: false, simulateError: simulateErrorRef.current });
-      inFlight = false;
-      setStats((s) =>
-        result.ok
-          ? { ...s, sent: s.sent + 1, lastId: result.data.id, lastError: null }
-          : { ...s, failed: s.failed + 1, lastError: result.reason },
-      );
-    }, AUTO_SEND_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [phase, deviceId]);
-
-  // Armed: ask the server every second whether it has raised an alert.
-  useEffect(() => {
-    if (phase !== 'armed' || !deviceId) return;
-    let inFlight = false;
-    const timer = setInterval(async () => {
-      if (inFlight) return;
-      inFlight = true;
-      const result = await getStatus(deviceId);
-      inFlight = false;
-      if (result.ok && result.data.state === 'ALERT' && result.data.last_alert) {
-        setAlert(result.data.last_alert);
-      }
-    }, STATUS_POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
+    void sendReading(false);
+    const heartbeat = setInterval(() => {
+      const last = lastSentRef.current;
+      if (!last || Date.now() - last.at >= HEARTBEAT_MS) void sendReading(false);
+    }, 1000);
+    const poll = setInterval(() => void checkStatus(), STATUS_POLL_INTERVAL_MS);
+    return () => {
+      clearInterval(heartbeat);
+      clearInterval(poll);
+    };
   }, [phase, deviceId]);
 
   /** Tap on Arm: start the arming delay. */
@@ -121,6 +165,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     samplesRef.current = [];
     setIsStill(false);
     setError(null);
+    setLastSession(null);
     setSettleStartedAt(Date.now());
     setPhase('settling');
   }
@@ -138,6 +183,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     const restReading: Reading = { ...rest, magnitude: Math.round(Math.hypot(rest.x, rest.y, rest.z) * 1000) / 1000, takenAt: utcNow() };
     const result = await armRequest(deviceId, restReading, locationRef.current, { simulateError: simulateErrorRef.current });
     if (result.ok) {
+      lastSentRef.current = null;
       setArmedAt(result.data.armed_at ?? restReading.takenAt);
       setStats(EMPTY_STATS);
       setAlert(null);
@@ -146,18 +192,19 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
       setPhase('disarmed');
       setError(
         `Could not arm: ${result.reason}.\n` +
-          'Arm needs the dummy server running (the backend has no arm yet). From the repo root:\n' +
-          'python mobile/dev-server/server.py\n' +
-          'If it was already running, restart it so it has the arm endpoints.',
+          'Check that the server in EXPO_PUBLIC_API_URL is running, or start the dummy server from the repo root:\n' +
+          'python mobile/dev-server/server.py',
       );
     }
   }
 
+  /** Called after the right PIN. */
   async function disarm() {
     if (!deviceId) return;
     setPhase('disarming');
     const result = await disarmRequest(deviceId, { simulateError });
-    // Stop guarding on the phone either way; the user wants it off.
+    // Stop guarding on the phone either way; the owner wants it off.
+    setLastSession(armedAt ? { armedAt, alert } : null);
     setPhase('disarmed');
     setArmedAt(null);
     setAlert(null);
@@ -167,5 +214,5 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
   const settleSecondsLeft =
     settleStartedAt === null ? 0 : Math.max(0, Math.ceil((SETTLE_MIN_MS - (Date.now() - settleStartedAt)) / 1000));
 
-  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, alert, arm, cancel, disarm };
+  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, alert, lastSession, arm, cancel, disarm };
 }

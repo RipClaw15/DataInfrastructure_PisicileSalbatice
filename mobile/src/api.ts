@@ -27,6 +27,8 @@ export type EventResponse = {
   id: number;
   device_id: string;
   received_at: string;
+  /** false (with id 0): checked but not kept; the backend keeps only state changes. Missing on older servers. */
+  stored?: boolean;
 };
 
 /** An alert raised by the server (contracts/frontend/alerts.json). */
@@ -128,7 +130,7 @@ let mockId = 1000;
 
 /** POST /api/events: one reading. */
 export function sendEvent(payload: EventPayload, options: RequestOptions = {}): Promise<ApiResult<EventResponse>> {
-  return post('/api/events', payload, 201, () => ({ id: ++mockId, device_id: payload.device_id, received_at: utcNow() }), options);
+  return post('/api/events', payload, 201, () => ({ id: ++mockId, device_id: payload.device_id, received_at: utcNow(), stored: true }), options);
 }
 
 /**
