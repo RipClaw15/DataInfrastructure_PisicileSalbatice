@@ -109,6 +109,7 @@ Header: `Content-Type: application/json`. Request: [`mobile/post_event_request.j
 | `unit` | string | yes | `"g"` |
 | `timestamp` | string | yes | UTC, when the reading was taken |
 | `axes` | object | yes | raw `x`, `y`, `z` (numbers, in g) |
+| `location` | object | no | live position, same shape as the arm `location`. Sent by the manual Send button and by every reading while `ALERT` (the phone may be on the move) |
 
 Responses:
 - `201`: [`mobile/post_event_response.json`](mobile/post_event_response.json): `{"id": 152, "device_id": "demo-phone-01", "received_at": "..."}`
@@ -176,6 +177,7 @@ Request: [`mobile/arm_request.json`](mobile/arm_request.json): the resting posit
 ```json
 { "timestamp": "2026-11-20T19:10:00Z", "axes": { "x": 0.022, "y": -0.029, "z": -0.984 } }
 ```
+Optional `location`: where the phone was armed, `{"lat": 46.77, "lon": 23.59, "accuracy_m": 12}` (`accuracy_m` may be `null`). Left out without a GPS fix. Store it with the session; if it's there, `status` returns it.
 `200`: the new status ([`mobile/status_guarding.json`](mobile/status_guarding.json)). Arming while already armed starts a new session.
 `422`: missing/invalid `axes` or `timestamp`.
 
@@ -195,6 +197,8 @@ No body. `200`: the new status ([`mobile/status_disarmed.json`](mobile/status_di
 }
 ```
 - `armed_at`: `null` when `DISARMED`. `last_alert`: the current session's alert, `null` if none.
+- `location` (optional): the location sent with Arm. Missing when `DISARMED` or when the phone sent none.
+- `last_location` (optional): the `location` of the newest reading that had one. During `ALERT`, this is where the phone is now.
 - `online`: last reading arrived within the last 5 minutes. `last_seen`: `timestamp` of the newest reading.
 - `404` `{"detail": "Device not found"}` if the phone never sent a reading or armed.
 - The dashboard gets `device_id` from the newest reading in `GET /api/events`.

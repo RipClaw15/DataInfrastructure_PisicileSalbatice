@@ -133,6 +133,9 @@ The dashboard is where the alert **shows up**, so this is the demo moment. Full 
 3. **Chart**: the v0 magnitude chart, with a shaded band from `armed_at` and a marker at each alert's `timestamp`.
 4. **Phone card**: `online` and `last_seen` now come from `status`.
 5. **Polling**: status every **1 s** while `GUARDING` or `ALERT` (so the alert appears fast), every `VITE_POLL_SECONDS` otherwise.
+6. **Location** (optional): `status` can carry `location` (where it was armed) and `last_location` (live, sent after an alert).
+   While `GUARDING`, show "Armed at lat, lon". On `ALERT`, show `last_location` **in red** as "Now at lat, lon (±m)" (a map pin is a bonus).
+   Hide it when the fields are missing; the fixtures don't have them yet.
 
 ### Done when (v1)
 - [ ] All three states render from the fixtures; `ALERT` is impossible to miss
