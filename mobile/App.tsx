@@ -54,6 +54,7 @@ export default function App() {
         magnitude={reading?.magnitude ?? null}
         settleSecondsLeft={guard.settleSecondsLeft}
         isStill={guard.isStill}
+        alert={guard.alert}
         onCancel={guard.cancel}
         onDisarm={guard.disarm}
       />

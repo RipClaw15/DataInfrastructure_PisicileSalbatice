@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { Alert } from './api';
 import type { AutoSendStats, GuardPhase } from './useGuard';
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   magnitude: number | null;
   settleSecondsLeft: number;
   isStill: boolean;
+  alert: Alert | null;
   onCancel: () => void;
   onDisarm: () => void;
 };
@@ -46,18 +48,28 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, onCancel }: Props) {
   );
 }
 
-function Guarding({ phase, armedAt, stats, magnitude, onDisarm }: Props) {
+function Guarding({ phase, armedAt, stats, magnitude, alert, onDisarm }: Props) {
   const elapsed = useElapsed(armedAt);
   const disarming = phase === 'disarming';
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, alert && styles.alertScreen]}>
       <StatusBar style="light" />
-      <View style={styles.center}>
-        <Text style={styles.title}>GUARDING</Text>
-        <Text style={styles.elapsed}>{elapsed}</Text>
-        <Text style={styles.hint}>Leave the phone where it is. Keep the app open.</Text>
-      </View>
+      {alert ? (
+        <View style={styles.center}>
+          <Text style={[styles.title, styles.alertTitle]}>MOVED</Text>
+          <Text style={styles.alertTime}>{new Date(alert.timestamp).toLocaleTimeString()}</Text>
+          <Text style={styles.alertHint}>
+            Picked up ({Math.round(alert.angle_deg)}° from where it lay). The alarm stays on until you disarm.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.center}>
+          <Text style={styles.title}>GUARDING</Text>
+          <Text style={styles.elapsed}>{elapsed}</Text>
+          <Text style={styles.hint}>Leave the phone where it is. Keep the app open.</Text>
+        </View>
+      )}
 
       <View style={styles.stats}>
         <Stat label="sent" value={String(stats.sent)} />
@@ -69,7 +81,7 @@ function Guarding({ phase, armedAt, stats, magnitude, onDisarm }: Props) {
       <Pressable
         onPress={onDisarm}
         disabled={disarming}
-        style={({ pressed }) => [styles.button, (pressed || disarming) && styles.buttonPressed]}
+        style={({ pressed }) => [styles.button, alert && styles.alertButton, (pressed || disarming) && styles.buttonPressed]}
       >
         <Text style={styles.buttonText}>{disarming ? 'Disarming…' : 'Disarm'}</Text>
       </Pressable>
@@ -108,6 +120,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   title: { color: '#3ebd93', fontSize: 44, fontWeight: '800', letterSpacing: 4 },
   settling: { color: '#f0b429', fontSize: 36 },
+  alertScreen: { backgroundColor: '#b42318' },
+  alertTitle: { color: '#fff', fontSize: 56 },
+  alertTime: { color: '#fff', fontSize: 40, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  alertHint: { color: '#fde2e1', fontSize: 15, textAlign: 'center' },
+  alertButton: { backgroundColor: '#1f2933' },
   elapsed: { color: '#e4e7eb', fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
   hint: { color: '#9aa5b1', fontSize: 15, textAlign: 'center' },
   stats: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },

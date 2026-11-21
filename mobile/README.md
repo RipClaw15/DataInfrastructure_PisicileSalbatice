@@ -61,7 +61,8 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 - **Arm:** tap Arm, then put the phone down. It shows **PUT IT DOWN** and arms only once it has been lying still for 2 seconds (at least 5 seconds after the tap),
   so the resting position is where it lies, not where you held it. Then the screen shows **GUARDING**, a timer, and sent/failed counters, and stays awake.
   The phone now sends a reading every second; the dummy server prints `== ARMED` and how far each reading has turned from the resting position.
-  Pick the phone up: the server prints `!! ALERT picked_up …`. Tap **Disarm** to stop.
+  Pick the phone up: the server prints `!! ALERT picked_up …`, and within a second the phone turns **red: MOVED** with the time.
+  It stays red (the alarm stays on) until you tap **Disarm**. Mock mode never turns red: alerts need the dummy server.
 - **Keep the app open while armed:** phones pause apps in the background.
 
 ## Troubleshooting

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { arm as armRequest, buildPayload, disarm as disarmRequest, sendEvent } from './api';
+import { arm as armRequest, buildPayload, disarm as disarmRequest, getStatus, sendEvent, type Alert } from './api';
 import { angleDeg, meanAxes, type Axes } from './motion';
 import { utcNow, type Reading } from './sensor';
 
 const AUTO_SEND_INTERVAL_MS = 1000;
+const STATUS_POLL_INTERVAL_MS = 1000;
 /** Arming delay: time to put the phone down after tapping Arm. */
 const SETTLE_MIN_MS = 5000;
 /**
@@ -43,6 +44,8 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
   const [stats, setStats] = useState<AutoSendStats>(EMPTY_STATS);
   const [settleStartedAt, setSettleStartedAt] = useState<number | null>(null);
   const [isStill, setIsStill] = useState(false);
+  /** Set when the server reports ALERT for this session (the server decides what counts as moved). */
+  const [alert, setAlert] = useState<Alert | null>(null);
 
   // The intervals and effects below read the newest values through refs instead of restarting every 100 ms.
   const readingRef = useRef(reading);
@@ -89,6 +92,22 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
     return () => clearInterval(timer);
   }, [phase, deviceId]);
 
+  // Armed: ask the server every second whether it has raised an alert.
+  useEffect(() => {
+    if (phase !== 'armed' || !deviceId) return;
+    let inFlight = false;
+    const timer = setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const result = await getStatus(deviceId);
+      inFlight = false;
+      if (result.ok && result.data.state === 'ALERT' && result.data.last_alert) {
+        setAlert(result.data.last_alert);
+      }
+    }, STATUS_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [phase, deviceId]);
+
   /** Tap on Arm: start the arming delay. */
   function arm() {
     if (!deviceId || !reading) return;
@@ -114,6 +133,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
     if (result.ok) {
       setArmedAt(result.data.armed_at ?? restReading.takenAt);
       setStats(EMPTY_STATS);
+      setAlert(null);
       setPhase('armed');
     } else {
       setPhase('disarmed');
@@ -133,11 +153,12 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
     // Stop guarding on the phone either way; the user wants it off.
     setPhase('disarmed');
     setArmedAt(null);
+    setAlert(null);
     setError(result.ok ? null : `Stopped on the phone, but the server didn't confirm: ${result.reason}`);
   }
 
   const settleSecondsLeft =
     settleStartedAt === null ? 0 : Math.max(0, Math.ceil((SETTLE_MIN_MS - (Date.now() - settleStartedAt)) / 1000));
 
-  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, arm, cancel, disarm };
+  return { phase, armedAt, error, stats, isStill, settleSecondsLeft, alert, arm, cancel, disarm };
 }
