@@ -15,6 +15,9 @@ export type LocationState =
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
+/** The first fix is often the cached one from wherever the phone was last; older than this, it isn't where it is now. */
+const MAX_FIX_AGE_MS = 60_000;
+
 /** Live GPS position while the app is open, updated when it moves 10 m or more. Asks for permission once; arming works without it if denied. */
 export function useLocation(): LocationState {
   const [state, setState] = useState<LocationState>({ status: 'checking' });
@@ -32,7 +35,8 @@ export function useLocation(): LocationState {
       }
 
       setState({ status: 'ready', point: null });
-      const watch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10 }, ({ coords }) => {
+      const watch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10 }, ({ coords, timestamp }) => {
+        if (Date.now() - timestamp > MAX_FIX_AGE_MS) return;
         setState({
           status: 'ready',
           point: {
