@@ -39,7 +39,7 @@ type SendStatus =
   | { kind: 'sent'; id: number; stored: boolean }
   | { kind: 'failed'; reason: string };
 
-
+/** Setting the PIN: enter it, then enter it again. `thenArm` when it was started by tapping Arm. */
 type PinSetup = { step: 'enter' | 'confirm'; first?: string; mismatch?: boolean; thenArm: boolean };
 
 type PairingState =
@@ -113,7 +113,7 @@ export default function App() {
     );
   }
 
-  
+  /** Arm needs a PIN, because the PIN is the only way to disarm. */
   function onArm() {
     if (pin) guard.arm();
     else setPinSetup({ step: 'enter', thenArm: true });
@@ -405,7 +405,6 @@ export default function App() {
   );
 }
 
-
 function LastSession({ session }: { session: SessionSummary }) {
   const since = new Date(session.armedAt).toLocaleTimeString();
   const { alert } = session;
@@ -481,7 +480,6 @@ const styles = StyleSheet.create({
   badgeMockText: { fontSize: 12, fontWeight: '700', color: colors.warn },
   badgeLiveText: { fontSize: 12, fontWeight: '700', color: colors.ok },
   card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 16, gap: 6 },
-  
   alertCard: { backgroundColor: colors.alertSoft, borderColor: colors.alert },
   alertText: { color: colors.alert },
   sessionText: { fontSize: 17, fontWeight: '600', color: colors.ink },

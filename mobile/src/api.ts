@@ -12,6 +12,7 @@ import {
 import type { GeoPoint } from './location';
 import { utcNow, type Reading } from './sensor';
 
+/** Empty → mock mode (no network calls). Read at bundle time; restart Expo after changing .env. */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 export const isMockMode = API_URL === '';
 
@@ -28,6 +29,7 @@ export type EventPayload = {
   unit: 'g';
   timestamp: string;
   axes: Axes;
+  /** Optional live location: sent by Send reading (debugging) and by auto-send while in ALERT. */
   location?: GeoPoint;
 };
 
@@ -35,6 +37,7 @@ export type EventResponse = {
   id: number;
   device_id: string;
   received_at: string;
+  /** false (with id 0): checked but not kept; the backend keeps only state changes. Missing on older servers. */
   stored?: boolean;
 };
 
@@ -64,6 +67,7 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; reason: string }
 
 type RequestOptions = {
   simulateError?: boolean;
+  /** Retry 5xx/network failures (1 s, 2 s, 4 s). Off for auto-send, where the next reading follows anyway. */
   retry?: boolean;
   onRetry?: (attempt: number, of: number) => void;
 };
@@ -80,6 +84,7 @@ export function buildPayload(deviceId: string, reading: Reading, location: GeoPo
   };
 }
 
+/** Thrown for failures worth retrying (5xx, timeout, no network). */
 class RetryableError extends Error { }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -203,6 +208,11 @@ async function postOnce<T>(path: string, body: unknown, okStatus: number): Promi
   throw new Error(`unexpected response ${res.status}`);
 }
 
+/**
+ * POSTs to the API, or returns `mock()` after a short delay in mock mode.
+ * Retries 5xx/network failures up to 3 times (1 s, 2 s, 4 s) unless `retry` is false;
+ * anything else (e.g. 422) fails immediately.
+ */
 async function post<T>(path: string, body: unknown, okStatus: number, mock: () => T, options: RequestOptions): Promise<ApiResult<T>> {
   const maxRetries = options.retry === false ? 0 : RETRY_DELAYS_MS.length;
   for (let attempt = 0; ; attempt++) {
