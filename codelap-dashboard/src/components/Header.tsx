@@ -1,4 +1,4 @@
-import { API_URL, isFixtureMode } from '../api/consts.ts'
+import { API_URL, PAIRING, isFixtureMode } from '../api/consts.ts'
 import { formatTime } from '../utils/time.ts'
 
 type HeaderProps = {
@@ -21,9 +21,11 @@ export default function Header({ lastRefreshed, stale, onUnpair }: HeaderProps) 
                     <span className={`size-2 rounded-full ${stale ? 'bg-warn' : 'bg-ok'}`} />
                     {lastRefreshed ? formatTime(lastRefreshed) : '—'}
                 </span>
-                <button onClick={onUnpair} className={`${pill} cursor-pointer hover:bg-page`}>
-                    Unpair
-                </button>
+                {PAIRING && (
+                    <button onClick={onUnpair} className={`${pill} cursor-pointer hover:bg-page`}>
+                        Unpair
+                    </button>
+                )}
             </div>
         </header>
     )

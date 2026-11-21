@@ -10,12 +10,14 @@ import {
     XAxis,
     YAxis,
 } from 'recharts'
-import type { Reading } from '../api/types.ts'
+import type { Alert, Reading } from '../api/types.ts'
 import { MOVING_THRESHOLD_G, STILL_G } from '../utils/stats.ts'
 import { formatTime } from '../utils/time.ts'
 
 type ReadingsChartProps = {
     events: Reading[]
+    armedAt: string | null
+    alerts: Alert[]
 }
 
 type ChartTooltipProps = {
@@ -36,7 +38,7 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
 
 const axisTick = { fontSize: 12, fill: 'var(--muted)' }
 
-export default function ReadingsChart({ events }: ReadingsChartProps) {
+export default function ReadingsChart({ events, armedAt, alerts }: ReadingsChartProps) {
     const [showAxes, setShowAxes] = useState(false)
 
     // API is newest-first, chart wants oldest -> newest
@@ -52,9 +54,13 @@ export default function ReadingsChart({ events }: ReadingsChartProps) {
         [events],
     )
 
+    const first = data[0].t
+    const last = data[data.length - 1].t
+    const armedFrom = armedAt ? Math.min(Math.max(new Date(armedAt).getTime(), first), last) : null
+
     return (
         <section className="rounded-xl border border-line bg-card p-4">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-muted">Magnitude (g)</h2>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
                     <input
@@ -65,6 +71,13 @@ export default function ReadingsChart({ events }: ReadingsChartProps) {
                     x / y / z
                 </label>
             </div>
+
+            <p className="mb-4 text-xs text-muted">
+                g is gravity (1 g = Earth's pull). The grey band is "still", within {MOVING_THRESHOLD_G} g of 1 g;
+                the line leaves it when the phone moves.
+                {armedFrom !== null && ' Green shading: guarding.'}
+                {alerts.length > 0 && ' Red line: alert.'}
+            </p>
 
             <div className="h-72 w-full">
                 <ResponsiveContainer>
@@ -88,6 +101,9 @@ export default function ReadingsChart({ events }: ReadingsChartProps) {
                             tickFormatter={(v: number) => v.toFixed(1)}
                         />
                         <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--line)' }} />
+                        {armedFrom !== null && (
+                            <ReferenceArea x1={armedFrom} x2={last} fill="var(--ok)" fillOpacity={0.12} />
+                        )}
                         <ReferenceArea
                             y1={STILL_G - MOVING_THRESHOLD_G}
                             y2={STILL_G + MOVING_THRESHOLD_G}
@@ -100,6 +116,14 @@ export default function ReadingsChart({ events }: ReadingsChartProps) {
                             strokeDasharray="4 4"
                             label={{ value: 'still', position: 'insideTopRight', fill: 'var(--muted)', fontSize: 12 }}
                         />
+                        {alerts.map((a) => (
+                            <ReferenceLine
+                                key={a.id}
+                                x={new Date(a.timestamp).getTime()}
+                                stroke="var(--alert)"
+                                strokeWidth={2}
+                            />
+                        ))}
                         {showAxes && (
                             <>
                                 <Line dataKey="x" stroke="#9ca3af" strokeWidth={1} dot={false} isAnimationActive={false} />

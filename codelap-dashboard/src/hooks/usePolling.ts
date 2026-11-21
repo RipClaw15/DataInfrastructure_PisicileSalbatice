@@ -1,30 +1,47 @@
 import { useEffect, useRef, useState } from 'react'
 import { UnauthorizedError } from '../api'
 
+// A number, or a function of the latest data (e.g. poll faster while armed)
+type Seconds<T> = number | ((data: T | null) => number)
+
 export function usePolling<T>(
     fetcher: () => Promise<T>,
-    seconds: number,
-    onUnauthorized: () => void,
+    seconds: Seconds<T>,
+    onUnauthorized?: () => void,
+    enabled = true,
 ) {
     const [data, setData] = useState<T | null>(null)
     const [error, setError] = useState<Error | null>(null)
     const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
     const fetcherRef = useRef(fetcher)
+    const secondsRef = useRef(seconds)
     const onUnauthorizedRef = useRef(onUnauthorized)
 
     useEffect(() => {
         fetcherRef.current = fetcher
+        secondsRef.current = seconds
         onUnauthorizedRef.current = onUnauthorized
     })
 
+    // A changed plain number restarts the loop right away
+    const fixedSeconds = typeof seconds === 'number' ? seconds : null
+
     useEffect(() => {
+        if (!enabled) return
+
         let cancelled = false
         let timer: number | undefined
 
+        const delayFor = (result: T | null) => {
+            const s = secondsRef.current
+            return (typeof s === 'function' ? s(result) : s) * 1000
+        }
+
         async function tick() {
+            let result: T | null = null
             try {
-                const result = await fetcherRef.current()
+                result = await fetcherRef.current()
                 if (cancelled) return
                 setData(result)
                 setError(null)
@@ -32,12 +49,12 @@ export function usePolling<T>(
             } catch (e) {
                 if (cancelled) return
                 if (e instanceof UnauthorizedError) {
-                    onUnauthorizedRef.current()
+                    onUnauthorizedRef.current?.()
                     return
                 }
                 setError(e instanceof Error ? e : new Error('Unknown error'))
             }
-            timer = window.setTimeout(tick, seconds * 1000)
+            timer = window.setTimeout(tick, delayFor(result))
         }
 
         tick()
@@ -45,7 +62,7 @@ export function usePolling<T>(
             cancelled = true
             window.clearTimeout(timer)
         }
-    }, [seconds])
+    }, [fixedSeconds, enabled])
 
     return { data, error, lastRefreshed }
 }

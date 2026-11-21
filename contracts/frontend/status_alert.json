@@ -1,21 +1,21 @@
 {
-  "device_id": "demo-phone-01",
+  "device_id": "phone-z6x91yqg",
   "state": "ALERT",
-  "armed_at": "2026-11-20T19:10:00Z",
-  "last_seen": "2026-11-20T19:10:30Z",
+  "armed_at": "2026-11-21T09:57:46Z",
+  "last_seen": "2026-11-21T09:57:52Z",
   "online": true,
   "last_alert": {
     "id": 1,
-    "device_id": "demo-phone-01",
+    "device_id": "phone-z6x91yqg",
     "type": "picked_up",
-    "timestamp": "2026-11-20T19:10:12Z",
-    "angle_deg": 38.5,
-    "value": 0.973,
+    "timestamp": "2026-11-21T09:57:49Z",
+    "angle_deg": 110.9,
+    "value": 0.988,
     "unit": "g",
     "axes": {
-      "x": 0.02,
-      "y": -0.628,
-      "z": -0.744
+      "x": 0.263,
+      "y": -0.885,
+      "z": 0.351
     }
   }
 }

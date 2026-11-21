@@ -1,8 +1,20 @@
 import meFixture from '../fixtures/me.json'
-import eventsFixture from '../fixtures/me_events.json'
+import myEventsFixture from '../fixtures/me_events.json'
 import pairFixture from '../fixtures/pair_response.json'
+import eventsFixture from '../../../contracts/frontend/events.json'
+import alertsFixture from '../../../contracts/frontend/alerts.json'
+import statusAlert from '../../../contracts/frontend/status_alert.json'
+import statusGuarding from '../../../contracts/frontend/status_guarding.json'
+import statusDisarmed from '../../../contracts/frontend/status_disarmed.json'
 import {API_URL, isFixtureMode} from "./consts.ts";
-import type {EventsResponse, Me, PairResponse} from "./types.ts";
+import type {
+    AlertsResponse,
+    DeviceStatus,
+    EventsResponse,
+    Me,
+    MyEventsResponse,
+    PairResponse,
+} from "./types.ts";
 
 const TOKEN_KEY = 'viewer_token'
 const FIXTURE_CODE = '482913'
@@ -32,7 +44,7 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
 async function request<T>(path: string, init: RequestInit = {}, auth = true): Promise<T> {
     const headers = new Headers(init.headers)
-    headers.set('Content-Type', 'application/json')
+    if (init.body) headers.set('Content-Type', 'application/json')
     if (auth) {
         const token = localStorage.getItem(TOKEN_KEY)
         if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -55,6 +67,54 @@ async function request<T>(path: string, init: RequestInit = {}, auth = true): Pr
     }
     return res.json() as Promise<T>
 }
+
+// v0 + v1: no token, pairing is off until v3
+
+// The sample readings end at 19:05:14Z but the sample session runs 19:10:00-19:10:30Z, so the
+// armed band and alert marker would fall off the chart. In fixture mode, shift the readings
+// so the newest one lands on the sample status' last_seen.
+const fixtureOffsetMs =
+    new Date(statusAlert.last_seen).getTime() - new Date(eventsFixture.events[0].timestamp).getTime()
+const shiftIso = (iso: string) => new Date(new Date(iso).getTime() + fixtureOffsetMs).toISOString()
+
+export async function getEvents(limit = 50): Promise<EventsResponse> {
+    if (isFixtureMode) {
+        const events = eventsFixture.events.slice(0, limit)
+        return {
+            events: events.map((e) => ({
+                ...e,
+                timestamp: shiftIso(e.timestamp),
+                received_at: shiftIso(e.received_at),
+            })),
+        }
+    }
+    return request<EventsResponse>(`/api/events?limit=${limit}`, {}, false)
+}
+
+const statusFixtures = { alert: statusAlert, guarding: statusGuarding, disarmed: statusDisarmed }
+
+// Fixture mode: pick the state with ?state=alert|guarding|disarmed (default: alert)
+function fixtureStatus(): DeviceStatus {
+    const key = new URLSearchParams(window.location.search).get('state') ?? 'alert'
+    const fixture = statusFixtures[key as keyof typeof statusFixtures] ?? statusAlert
+    return fixture as DeviceStatus
+}
+
+export async function getStatus(deviceId: string): Promise<DeviceStatus> {
+    if (isFixtureMode) return fixtureStatus()
+    return request<DeviceStatus>(`/api/devices/${encodeURIComponent(deviceId)}/status`, {}, false)
+}
+
+export async function getAlerts(deviceId: string, limit = 20): Promise<AlertsResponse> {
+    if (isFixtureMode) return { ...alertsFixture, alerts: alertsFixture.alerts.slice(0, limit) }
+    return request<AlertsResponse>(
+        `/api/devices/${encodeURIComponent(deviceId)}/alerts?limit=${limit}`,
+        {},
+        false,
+    )
+}
+
+// Pairing (v3, VITE_PAIRING=true)
 
 function requireFixtureToken() {
     if (!hasToken()) throw new UnauthorizedError()
@@ -86,10 +146,10 @@ export async function getMe(): Promise<Me> {
     return request<Me>('/api/me')
 }
 
-export async function getMyEvents(limit = 50): Promise<EventsResponse> {
+export async function getMyEvents(limit = 50): Promise<MyEventsResponse> {
     if (isFixtureMode) {
         requireFixtureToken()
-        return { ...eventsFixture, events: eventsFixture.events.slice(0, limit) }
+        return { ...myEventsFixture, events: myEventsFixture.events.slice(0, limit) }
     }
-    return request<EventsResponse>(`/api/me/events?limit=${limit}`)
+    return request<MyEventsResponse>(`/api/me/events?limit=${limit}`)
 }
