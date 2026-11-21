@@ -1,7 +1,8 @@
 # Mobile dummy server
 
 A throwaway API for testing the mobile app on its own. **It's not the real backend** (that lives in `backend/`).
-It accepts `POST /api/events` as defined in contract v0, prints every reading to the console and keeps them in memory (lost on restart).
+It accepts readings (contract v0) and arm/disarm (contract v1), prints everything to the console and keeps it in memory (lost on restart).
+While armed it applies the contract's detection rules and raises alerts, so it also works as a reference for the real backend.
 
 Standard library only: no install needed.
 
@@ -16,12 +17,22 @@ On startup it prints its URL and checks `mobile/.env`: either `mobile/.env OK`, 
 |---|---|
 | `POST /api/events` | Validates the required fields, prints the reading, returns `201 {id, device_id, received_at}` (or `422`) |
 | `GET /api/events?limit=50` | Readings received so far, newest first |
+| `POST /api/devices/{id}/arm` | Saves the resting position, prints `== ARMED`, returns the status (`GUARDING`) |
+| `POST /api/devices/{id}/disarm` | Prints `== DISARMED`, returns the status (`DISARMED`) |
+| `GET /api/devices/{id}/status` | `DISARMED`, `GUARDING` or `ALERT`, with the last alert (`404` before the first reading or arm) |
+| `GET /api/devices/{id}/alerts?limit=20` | Alerts, newest first |
 | `GET /health` | `{"status": "ok"}` |
 
-Console output:
+Console output (while armed, each reading also shows how far it has turned from the resting position):
 ```
-#152  2026-11-20T18:57:59Z  phone-irbmii9a  x=-0.033 y=-0.645 z=-0.771  |a|=1.006 g
+== ARMED phone-irbmii9a at 2026-11-20T19:10:00Z, resting position x=+0.022 y=-0.029 z=-0.984
+#12   2026-11-20T19:10:05Z  phone-irbmii9a  x=+0.025 y=-0.028 z=-0.980  |a|=0.980 g  armed,   0.2 deg from rest
+#13   2026-11-20T19:10:12Z  phone-irbmii9a  x=+0.020 y=-0.628 z=-0.744  |a|=0.973 g  armed,  38.5 deg from rest
+!! ALERT picked_up: 38.5 deg, 0.973 g
+#14   2026-11-20T19:10:13Z  phone-irbmii9a  x=-0.011 y=-0.557 z=-0.855  |a|=1.021 g  armed,  39.1 deg from rest  [ALERT]
+== DISARMED phone-irbmii9a (was ALERT: picked_up at 2026-11-20T19:10:12Z, 38.5 deg)
 ```
+Rule (contract v1): more than 15° from the resting position → one `picked_up` alert; the state stays `ALERT` until disarmed.
 
 ## Captured readings
 [`captured-readings.json`](captured-readings.json) holds the 189 real readings from the first test (2026-11-20, 3 iPhones and 1 Android phone),

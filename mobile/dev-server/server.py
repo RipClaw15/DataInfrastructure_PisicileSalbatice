@@ -1,14 +1,17 @@
 """Dummy API for testing the mobile app on its own. Not the real backend.
 
-Accepts POST /api/events (contract v0), prints every reading to the console
-and keeps them in memory. Standard library only, so there is nothing to install.
+Accepts readings (contract v0) and arm/disarm/status/alerts (contract v1), and applies
+the contract's detection rules while armed, so it doubles as a reference for the real
+backend. Prints everything and keeps it in memory. Standard library only, nothing to install.
 
     python mobile/dev-server/server.py [--port 8000]
 """
 
 import argparse
 import json
+import math
 import platform
+import re
 import socket
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,11 +20,62 @@ from urllib.parse import parse_qs, urlparse
 
 REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axes")
 
+# Contract v1 detection: moved more than this from the resting position -> one picked_up alert.
+PICKED_UP_DEG = 15.0
+
 events: list[dict] = []
+armed: dict[str, dict] = {}  # device_id -> {"armed_at", "axes" (resting position), "alert" (this session's, or None)}
+alerts: list[dict] = []  # all sessions, oldest first
+last_seen: dict[str, str] = {}
+
+DEVICE_PATH = re.compile(r"^/api/devices/([a-z0-9-]{3,64})/(arm|disarm|status|alerts)$")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def valid_axes(axes) -> bool:
+    return isinstance(axes, dict) and all(isinstance(axes.get(k), (int, float)) for k in "xyz")
+
+
+def angle_deg(a: dict, b: dict) -> float:
+    """Angle between two x/y/z vectors, in degrees."""
+    dot = sum(a[k] * b[k] for k in "xyz")
+    norms = math.sqrt(sum(a[k] ** 2 for k in "xyz")) * math.sqrt(sum(b[k] ** 2 for k in "xyz"))
+    return math.degrees(math.acos(max(-1.0, min(1.0, dot / norms)))) if norms else 0.0
+
+
+def check_reading(session: dict, reading: dict) -> dict | None:
+    """Contract v1: the first reading more than 15 deg from rest creates the session's one alert."""
+    if session["alert"] or angle_deg(session["axes"], reading["axes"]) <= PICKED_UP_DEG:
+        return None
+    alert = {
+        "id": len(alerts) + 1,
+        "device_id": reading["device_id"],
+        "type": "picked_up",
+        "timestamp": reading["timestamp"],
+        "angle_deg": round(angle_deg(session["axes"], reading["axes"]), 1),
+        "value": reading["value"],
+        "unit": "g",
+        "axes": reading["axes"],
+    }
+    alerts.append(alert)
+    session["alert"] = alert
+    return alert
+
+
+def status(device_id: str) -> dict:
+    session = armed.get(device_id)
+    state = "DISARMED" if not session else "ALERT" if session["alert"] else "GUARDING"
+    return {
+        "device_id": device_id,
+        "state": state,
+        "armed_at": session["armed_at"] if session else None,
+        "last_seen": last_seen.get(device_id),
+        "online": device_id in last_seen,
+        "last_alert": session["alert"] if session else None,
+    }
 
 
 def validation_error(body) -> str | None:
@@ -30,8 +84,7 @@ def validation_error(body) -> str | None:
     missing = [f for f in REQUIRED_FIELDS if f not in body]
     if missing:
         return f"missing fields: {', '.join(missing)}"
-    axes = body["axes"]
-    if not isinstance(axes, dict) or not all(isinstance(axes.get(k), (int, float)) for k in "xyz"):
+    if not valid_axes(body["axes"]):
         return "axes must contain numeric x, y, z"
     if not isinstance(body["value"], (int, float)) or body["value"] < 0:
         return "value must be a number >= 0"
@@ -51,6 +104,22 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/health":
             self.send_json(200, {"status": "ok"})
+        elif match := DEVICE_PATH.match(url.path):
+            device_id, action = match.groups()
+            if action in ("arm", "disarm"):
+                self.send_json(405, {"detail": "Use POST"})
+            elif device_id not in last_seen and device_id not in armed:
+                self.send_json(404, {"detail": "Device not found"})
+            elif action == "status":
+                self.send_json(200, status(device_id))
+            else:
+                try:
+                    limit = int(parse_qs(url.query).get("limit", ["20"])[0])
+                except ValueError:
+                    self.send_json(422, {"detail": "limit must be an integer"})
+                    return
+                mine = [a for a in alerts if a["device_id"] == device_id]
+                self.send_json(200, {"device_id": device_id, "alerts": mine[::-1][:limit]})
         elif url.path == "/api/events":
             try:
                 limit = int(parse_qs(url.query).get("limit", ["50"])[0])
@@ -61,15 +130,22 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_json(404, {"detail": "Not found"})
 
+    def read_json(self):
+        try:
+            return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"null")
+        except json.JSONDecodeError:
+            return None
+
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/events":
+        path = urlparse(self.path).path
+        if match := DEVICE_PATH.match(path):
+            self.arm_or_disarm(*match.groups())
+            return
+        if path != "/api/events":
             self.send_json(404, {"detail": "Not found"})
             return
 
-        try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-        except json.JSONDecodeError:
-            body = None
+        body = self.read_json()
 
         error = validation_error(body)
         if error:
@@ -79,13 +155,42 @@ class Handler(BaseHTTPRequestHandler):
 
         event = {"id": len(events) + 1, **body, "received_at": utc_now()}
         events.append(event)
+        last_seen[body["device_id"]] = body["timestamp"]
 
         a = body["axes"]
+        session = armed.get(body["device_id"])
+        guard = f"  armed, {angle_deg(session['axes'], a):5.1f} deg from rest" if session else ""
+        if session and session["alert"]:
+            guard += "  [ALERT]"
         print(
             f"#{event['id']:<4} {body['timestamp']}  {body['device_id']}  "
-            f"x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}  |a|={body['value']:.3f} {body['unit']}"
+            f"x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}  |a|={body['value']:.3f} {body['unit']}{guard}"
         )
+        if session and (alert := check_reading(session, body)):
+            print(f"!! ALERT {alert['type']}: {alert['angle_deg']} deg, {alert['value']} g")
         self.send_json(201, {"id": event["id"], "device_id": body["device_id"], "received_at": event["received_at"]})
+
+    def arm_or_disarm(self, device_id: str, action: str) -> None:
+        if action in ("status", "alerts"):
+            self.send_json(405, {"detail": "Use GET"})
+            return
+        if action == "disarm":
+            session = armed.pop(device_id, None)
+            alert = session and session["alert"]
+            was = f" (was ALERT: {alert['type']} at {alert['timestamp']}, {alert['angle_deg']} deg)" if alert else ""
+            print(f"== DISARMED {device_id}{was}")
+            self.send_json(200, status(device_id))
+            return
+
+        body = self.read_json()
+        if not isinstance(body, dict) or "timestamp" not in body or not valid_axes(body.get("axes")):
+            print(f"  x arm rejected from {self.client_address[0]}: needs timestamp and numeric axes x, y, z")
+            self.send_json(422, {"detail": "arm needs timestamp and axes with numeric x, y, z"})
+            return
+        armed[device_id] = {"armed_at": body["timestamp"], "axes": body["axes"], "alert": None}
+        a = body["axes"]
+        print(f"== ARMED {device_id} at {body['timestamp']}, resting position x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}")
+        self.send_json(200, status(device_id))
 
     def log_message(self, format, *args) -> None:
         pass  # readings are printed in do_POST; skip the default access log
