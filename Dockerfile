@@ -9,7 +9,6 @@ COPY contracts/frontend/ /web/contracts/frontend/
 # Vigu's frontend expects a full API URL; configure this build argument per deployment.
 ARG VITE_API_URL=https://fastapi-production-8b528611.up.railway.app
 ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_PAIRING=false
 RUN npm run build -- --base=/dashboard/
 
 FROM python:3.14-slim
