@@ -24,9 +24,10 @@ REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axe
 PICKED_UP_DEG = 15.0
 
 events: list[dict] = []
-armed: dict[str, dict] = {}  # device_id -> {"armed_at", "axes" (resting position), "alert" (this session's, or None)}
+armed: dict[str, dict] = {}  # device_id -> {"armed_at", "axes" (resting position), "location" (where armed), "alert" (this session's, or None)}
 alerts: list[dict] = []  # all sessions, oldest first
 last_seen: dict[str, str] = {}
+last_location: dict[str, dict] = {}  # device_id -> location of the newest reading that had one
 
 DEVICE_PATH = re.compile(r"^/api/devices/([a-z0-9-]{3,64})/(arm|disarm|status|alerts)$")
 
@@ -68,7 +69,7 @@ def check_reading(session: dict, reading: dict) -> dict | None:
 def status(device_id: str) -> dict:
     session = armed.get(device_id)
     state = "DISARMED" if not session else "ALERT" if session["alert"] else "GUARDING"
-    return {
+    result = {
         "device_id": device_id,
         "state": state,
         "armed_at": session["armed_at"] if session else None,
@@ -76,6 +77,11 @@ def status(device_id: str) -> dict:
         "online": device_id in last_seen,
         "last_alert": session["alert"] if session else None,
     }
+    if session and session["location"]:
+        result["location"] = session["location"]
+    if device_id in last_location:
+        result["last_location"] = last_location[device_id]
+    return result
 
 
 def validation_error(body) -> str | None:
@@ -162,9 +168,14 @@ class Handler(BaseHTTPRequestHandler):
         guard = f"  armed, {angle_deg(session['axes'], a):5.1f} deg from rest" if session else ""
         if session and session["alert"]:
             guard += "  [ALERT]"
+        loc = body.get("location")
+        gps = ""
+        if isinstance(loc, dict):
+            last_location[body["device_id"]] = loc
+            gps = f"  gps={loc.get('lat')},{loc.get('lon')}"
         print(
             f"#{event['id']:<4} {body['timestamp']}  {body['device_id']}  "
-            f"x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}  |a|={body['value']:.3f} {body['unit']}{guard}"
+            f"x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}  |a|={body['value']:.3f} {body['unit']}{guard}{gps}"
         )
         if session and (alert := check_reading(session, body)):
             print(f"!! ALERT {alert['type']}: {alert['angle_deg']} deg, {alert['value']} g")
@@ -187,9 +198,11 @@ class Handler(BaseHTTPRequestHandler):
             print(f"  x arm rejected from {self.client_address[0]}: needs timestamp and numeric axes x, y, z")
             self.send_json(422, {"detail": "arm needs timestamp and axes with numeric x, y, z"})
             return
-        armed[device_id] = {"armed_at": body["timestamp"], "axes": body["axes"], "alert": None}
+        loc = body.get("location") if isinstance(body.get("location"), dict) else None
+        armed[device_id] = {"armed_at": body["timestamp"], "axes": body["axes"], "location": loc, "alert": None}
         a = body["axes"]
-        print(f"== ARMED {device_id} at {body['timestamp']}, resting position x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}")
+        gps = f", at {loc.get('lat')},{loc.get('lon')}" if loc else ""
+        print(f"== ARMED {device_id} at {body['timestamp']}, resting position x={a['x']:+.3f} y={a['y']:+.3f} z={a['z']:+.3f}{gps}")
         self.send_json(200, status(device_id))
 
     def log_message(self, format, *args) -> None:

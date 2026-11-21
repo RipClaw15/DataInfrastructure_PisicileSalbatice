@@ -1,3 +1,4 @@
+import type { GeoPoint } from './location';
 import { utcNow, type Reading } from './sensor';
 
 /** Empty → mock mode (no network calls). Read at bundle time; restart Expo after changing .env. */
@@ -17,6 +18,8 @@ export type EventPayload = {
   unit: 'g';
   timestamp: string;
   axes: Axes;
+  /** Optional live location: sent by Send reading (debugging) and by auto-send while in ALERT. */
+  location?: GeoPoint;
 };
 
 /** 201 response (contracts/mobile/post_event_response.json). */
@@ -54,7 +57,7 @@ type RequestOptions = {
   onRetry?: (attempt: number, of: number) => void;
 };
 
-export function buildPayload(deviceId: string, reading: Reading): EventPayload {
+export function buildPayload(deviceId: string, reading: Reading, location: GeoPoint | null = null): EventPayload {
   return {
     device_id: deviceId,
     event_type: 'accelerometer',
@@ -62,6 +65,7 @@ export function buildPayload(deviceId: string, reading: Reading): EventPayload {
     unit: 'g',
     timestamp: reading.takenAt,
     axes: { x: reading.x, y: reading.y, z: reading.z },
+    ...(location && { location }),
   };
 }
 
@@ -127,9 +131,17 @@ export function sendEvent(payload: EventPayload, options: RequestOptions = {}): 
   return post('/api/events', payload, 201, () => ({ id: ++mockId, device_id: payload.device_id, received_at: utcNow() }), options);
 }
 
-/** POST /api/devices/{id}/arm: starts guarding; the reading is the resting position. */
-export function arm(deviceId: string, reading: Reading, options: RequestOptions = {}): Promise<ApiResult<DeviceStatus>> {
-  const body = { timestamp: reading.takenAt, axes: { x: reading.x, y: reading.y, z: reading.z } };
+/**
+ * POST /api/devices/{id}/arm: starts guarding; the reading is the resting position.
+ * `location` (optional) is where the phone was armed; left out without a GPS fix.
+ */
+export function arm(
+  deviceId: string,
+  reading: Reading,
+  location: GeoPoint | null,
+  options: RequestOptions = {},
+): Promise<ApiResult<DeviceStatus>> {
+  const body = { timestamp: reading.takenAt, axes: { x: reading.x, y: reading.y, z: reading.z }, ...(location && { location }) };
   return post(`/api/devices/${deviceId}/arm`, body, 200, () => mockStatus(deviceId, 'GUARDING', reading.takenAt), options);
 }
 

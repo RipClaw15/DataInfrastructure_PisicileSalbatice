@@ -63,7 +63,8 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
   The phone now sends a reading every second; the dummy server prints `== ARMED` and how far each reading has turned from the resting position.
   Pick the phone up: the server prints `!! ALERT picked_up …`, and within a second the phone turns **red: MOVED** with the time.
   It stays red (the alarm stays on) until you tap **Disarm**. Mock mode never turns red: alerts need the dummy server.
-- **Keep the app open while armed:** phones pause apps in the background.
+  After the alert, every reading carries the live GPS location: the red screen shows "Now at …" and the server prints `gps=…`.
+- **Keep the app open while armed:** phones pause apps in the background, so locking the phone or leaving the app stops the readings. The guarding screen keeps the phone from locking by itself.
 
 ## Troubleshooting
 | Problem | Fix |
@@ -74,6 +75,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 | Phone browser can't open the laptop's URL | Set the Wi-Fi/hotspot network to **Private** (see step 3), or allow Node.js and Python in Windows Defender Firewall → "Allow an app through firewall" for Public too. |
 | *"You need to be signed in to Expo Go and Expo CLI"* | Step 2: same Expo account on laptop and phone. |
 | Send says `failed: no connection to server` | The dummy server isn't running, or `.env` is out of date: restart the server and follow what it prints. Then open its address + `/health` in the phone's browser. |
+| Readings stop while armed | The phone was locked or the app left the screen. Open it again and it carries on. Keep it open on the guarding screen. |
 | *"Accelerometer not available"* | You're on a simulator. Use a real phone. |
 
 ## Files
@@ -83,6 +85,7 @@ You should see live x/y/z values. The badge at the top shows **MOCK MODE** or **
 | `src/GuardScreen.tsx` | The dark "GUARDING" screen shown while armed (keeps the screen awake) |
 | `src/useGuard.ts` | Arm/disarm and the one-reading-per-second auto-send |
 | `src/sensor.ts` | Accelerometer hook (x/y/z/magnitude in g, ~10 per second) |
+| `src/location.ts` | GPS hook (`expo-location`, while the app is open); sent with Arm, with Send reading, and with every reading after an alert |
 | `src/api.ts` | `POST /api/events`, arm and disarm, with timeout, retries and mock mode |
 | `src/deviceId.ts` | Creates `phone-xxxxxxxx` once and keeps it |
 | `dev-server/` | Dummy API for testing the app on its own + 189 captured real readings |

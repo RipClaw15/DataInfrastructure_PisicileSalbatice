@@ -123,6 +123,8 @@ Turns the phone into the guard. Details and rules: [`API_CONTRACT.md` → v1](..
    { "timestamp": "2026-11-20T19:10:00Z", "axes": { "x": 0.022, "y": -0.029, "z": -0.984 } }
    ```
    Response: the status (`state: "GUARDING"`). Sample: `arm_request.json`, `status_guarding.json`.
+   Optional: add `"location": {"lat", "lon", "accuracy_m"}` from `expo-location` (it works in Expo Go). Leave it out without a fix or permission.
+   The same `location` (live) goes on every reading once the status is `ALERT`, and on the manual Send button's reading; the red screen shows it.
 4. **While armed:** send the current reading to `POST /api/events` **every second**, automatically (same JSON as v0).
    Keep the manual Send button for testing.
 5. **"GUARDING" screen:** dark, large text, time since armed, last send result. Keep the screen awake with `expo-keep-awake`

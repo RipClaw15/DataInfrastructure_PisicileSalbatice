@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 
 import { API_URL, buildPayload, isMockMode, sendEvent, type EventPayload } from './src/api';
 import { getDeviceId } from './src/deviceId';
 import { GuardScreen } from './src/GuardScreen';
+import { useLocation, type LocationState } from './src/location';
 import { useAccelerometer } from './src/sensor';
 import { useGuard } from './src/useGuard';
 
@@ -17,6 +18,7 @@ type SendStatus =
 
 export default function App() {
   const sensor = useAccelerometer();
+  const gps = useLocation();
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [sendStatus, setSendStatus] = useState<SendStatus>({ kind: 'idle' });
   const [lastPayload, setLastPayload] = useState<EventPayload | null>(null);
@@ -27,14 +29,15 @@ export default function App() {
   }, []);
 
   const reading = sensor.status === 'ready' ? sensor.reading : null;
-  const guard = useGuard(deviceId, reading, simulateError);
+  const location = gps.status === 'ready' ? gps.point : null;
+  const guard = useGuard(deviceId, reading, location, simulateError);
   const busy = sendStatus.kind === 'sending' || sendStatus.kind === 'retrying';
   const canSend = reading !== null && deviceId !== null && !busy;
   const canArm = reading !== null && deviceId !== null && guard.phase === 'disarmed';
 
   async function onSend() {
     if (!reading || !deviceId) return;
-    const payload = buildPayload(deviceId, reading);
+    const payload = buildPayload(deviceId, reading, location);
     setLastPayload(payload);
     setSendStatus({ kind: 'sending' });
 
@@ -52,6 +55,7 @@ export default function App() {
         armedAt={guard.armedAt}
         stats={guard.stats}
         magnitude={reading?.magnitude ?? null}
+        location={location}
         settleSecondsLeft={guard.settleSecondsLeft}
         isStill={guard.isStill}
         alert={guard.alert}
@@ -81,6 +85,12 @@ export default function App() {
           </View>
           <Text style={styles.magnitude}>{reading ? reading.magnitude.toFixed(3) : '-.---'} g</Text>
           <Text style={styles.small}>magnitude (≈ 1.000 when lying still)</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Location</Text>
+          <Text style={styles.mono}>{location ? `${location.lat}, ${location.lon}` : '-'}</Text>
+          <Text style={styles.small}>{locationLabel(gps)}</Text>
         </View>
 
         <View style={styles.card}>
@@ -146,6 +156,18 @@ function sensorLabel(status: 'checking' | 'unavailable' | 'ready'): string {
       return 'Not available on this device (use a real phone, not a simulator)';
     case 'ready':
       return 'Available ✓';
+  }
+}
+
+function locationLabel(gps: LocationState): string {
+  switch (gps.status) {
+    case 'checking':
+      return 'Asking for permission…';
+    case 'denied':
+      return 'Permission denied: arming works without location';
+    case 'ready':
+      if (!gps.point) return 'Waiting for a fix…';
+      return `${gps.point.accuracy_m === null ? '' : `±${gps.point.accuracy_m} m. `}Sent with Arm, Send reading, and every reading after an alert`;
   }
 }
 

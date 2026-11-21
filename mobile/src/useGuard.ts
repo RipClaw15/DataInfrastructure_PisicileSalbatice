@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { arm as armRequest, buildPayload, disarm as disarmRequest, getStatus, sendEvent, type Alert } from './api';
+import type { GeoPoint } from './location';
 import { angleDeg, meanAxes, type Axes } from './motion';
 import { utcNow, type Reading } from './sensor';
 
@@ -37,7 +38,7 @@ type Sample = { at: number; axes: Axes };
  *
  * Auto-send doesn't retry: a failed reading is simply replaced by the next one.
  */
-export function useGuard(deviceId: string | null, reading: Reading | null, simulateError: boolean) {
+export function useGuard(deviceId: string | null, reading: Reading | null, location: GeoPoint | null, simulateError: boolean) {
   const [phase, setPhase] = useState<GuardPhase>('disarmed');
   const [armedAt, setArmedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,8 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
   // The intervals and effects below read the newest values through refs instead of restarting every 100 ms.
   const readingRef = useRef(reading);
   readingRef.current = reading;
+  const locationRef = useRef(location);
+  locationRef.current = location;
   const simulateErrorRef = useRef(simulateError);
   simulateErrorRef.current = simulateError;
   const samplesRef = useRef<Sample[]>([]);
@@ -73,7 +76,10 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
     }
   }, [phase, reading, settleStartedAt]);
 
-  // Armed: send the current reading every second.
+  const alertRef = useRef(alert);
+  alertRef.current = alert;
+
+  // Armed: send the current reading every second; once in ALERT, with the live location (the phone may be on the move).
   useEffect(() => {
     if (phase !== 'armed' || !deviceId) return;
     let inFlight = false;
@@ -81,7 +87,8 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
       const current = readingRef.current;
       if (inFlight || !current) return;
       inFlight = true;
-      const result = await sendEvent(buildPayload(deviceId, current), { retry: false, simulateError: simulateErrorRef.current });
+      const location = alertRef.current ? locationRef.current : null;
+      const result = await sendEvent(buildPayload(deviceId, current, location), { retry: false, simulateError: simulateErrorRef.current });
       inFlight = false;
       setStats((s) =>
         result.ok
@@ -129,7 +136,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, simul
     setPhase('arming');
     setSettleStartedAt(null);
     const restReading: Reading = { ...rest, magnitude: Math.round(Math.hypot(rest.x, rest.y, rest.z) * 1000) / 1000, takenAt: utcNow() };
-    const result = await armRequest(deviceId, restReading, { simulateError: simulateErrorRef.current });
+    const result = await armRequest(deviceId, restReading, locationRef.current, { simulateError: simulateErrorRef.current });
     if (result.ok) {
       setArmedAt(result.data.armed_at ?? restReading.takenAt);
       setStats(EMPTY_STATS);

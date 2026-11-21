@@ -4,6 +4,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Alert } from './api';
+import type { GeoPoint } from './location';
 import type { AutoSendStats, GuardPhase } from './useGuard';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   armedAt: string | null;
   stats: AutoSendStats;
   magnitude: number | null;
+  location: GeoPoint | null;
   settleSecondsLeft: number;
   isStill: boolean;
   alert: Alert | null;
@@ -48,7 +50,7 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, onCancel }: Props) {
   );
 }
 
-function Guarding({ phase, armedAt, stats, magnitude, alert, onDisarm }: Props) {
+function Guarding({ phase, armedAt, stats, magnitude, location, alert, onDisarm }: Props) {
   const elapsed = useElapsed(armedAt);
   const disarming = phase === 'disarming';
 
@@ -62,6 +64,7 @@ function Guarding({ phase, armedAt, stats, magnitude, alert, onDisarm }: Props) 
           <Text style={styles.alertHint}>
             Picked up ({Math.round(alert.angle_deg)}° from where it lay). The alarm stays on until you disarm.
           </Text>
+          <Text style={styles.alertLocation}>{location ? `Now at ${formatLocation(location)}` : 'No GPS fix'}</Text>
         </View>
       ) : (
         <View style={styles.center}>
@@ -98,6 +101,10 @@ function Stat({ label, value, warn = false }: { label: string; value: string; wa
   );
 }
 
+function formatLocation({ lat, lon, accuracy_m }: GeoPoint): string {
+  return accuracy_m === null ? `${lat}, ${lon}` : `${lat}, ${lon} (±${accuracy_m} m)`;
+}
+
 /** "mm:ss" (or "h:mm:ss") since armedAt, updated every second. */
 function useElapsed(since: string | null): string {
   const [now, setNow] = useState(Date.now());
@@ -124,6 +131,7 @@ const styles = StyleSheet.create({
   alertTitle: { color: '#fff', fontSize: 56 },
   alertTime: { color: '#fff', fontSize: 40, fontWeight: '300', fontVariant: ['tabular-nums'] },
   alertHint: { color: '#fde2e1', fontSize: 15, textAlign: 'center' },
+  alertLocation: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
   alertButton: { backgroundColor: '#1f2933' },
   elapsed: { color: '#e4e7eb', fontSize: 56, fontWeight: '300', fontVariant: ['tabular-nums'] },
   hint: { color: '#9aa5b1', fontSize: 15, textAlign: 'center' },

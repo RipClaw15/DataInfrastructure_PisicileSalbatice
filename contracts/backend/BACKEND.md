@@ -227,6 +227,13 @@ Also replay the real session in `mobile/dev-server/captured-guard-session.json` 
 still → picked up at 56° → put back where it was, and it must **stay** `ALERT`. Also test: readings while disarmed → no alerts,
 re-arming → back to `GUARDING` with no alert, and the table readings in `events.json` (#186–#189) against a table rest position → no alerts.
 
+### Location (optional, added after v1)
+The phone now sends `location: {lat, lon, accuracy_m}` (`accuracy_m` may be `null`); see [`API_CONTRACT.md`](../API_CONTRACT.md#v1-guard). Your current code already accepts it (ignored), so nothing breaks. To use it:
+1. `schemas.py`: a `Location` model, and `location: Location | None = None` on `ArmRequest` (so `EventRequest` gets it too).
+2. Store it: `lat`, `lon`, `accuracy_m` (nullable) on `arm_sessions` (where it was armed) and on `events` (live, sent while `ALERT`).
+3. `GuardStatus`: `location` = the open session's, `last_location` = the newest event that has one. Both optional; leave them out (or `null`) when unknown.
+4. Test: arm with a location → `status.location`; a reading with a location → `status.last_location`; no location anywhere → still works.
+
 ### Simulator
 Add `--arm`: arms the phone, sends `still` readings for 10 s, then switches to the chosen scenario, so the frontend sees `GUARDING` → `ALERT` without a phone.
 
