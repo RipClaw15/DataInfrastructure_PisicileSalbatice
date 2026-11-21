@@ -39,3 +39,16 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## This project (StayPut)
+
+Rules that hold regardless of the current numbers, limits or screens:
+
+- `contracts/` is the source of truth for the API shared with the backend and the dashboard. Change the contract first, then the code.
+- The backend decides what counts as moved and raises alerts. The phone only sends readings and reads the state.
+- The disarm PIN never leaves the phone: it is stored on the device only and never sent to any server.
+- The stealth screen must not reveal anything: it looks the same before and after an alert, and a wrong PIN gives no message.
+- The angle formula in `src/motion.ts` must stay the same as the backend's detection, or the phone and the server disagree on what moved.
+- The colours in `src/theme.ts` are the same tokens as the dashboard's `codelap-dashboard/src/index.css`. Change both together.
+- `mobile/.env` holds a local address and is never committed; `.env.example` shows the variable.
+- `mobile/dev-server/` is a dummy API for testing the app on its own, not the real backend. It follows the same contract.
