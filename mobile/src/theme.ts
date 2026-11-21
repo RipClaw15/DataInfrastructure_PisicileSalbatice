@@ -20,4 +20,4 @@ export const colors = {
 };
 
 /** The stealth screen: black pixels are off on AMOLED, so the phone looks dead; the PIN pad is barely visible. */
-export const stealth = { black: '#000000', pin: '#30424e' };
+export const stealth = { black: '#000000', pin: '#FFFFFF' };
