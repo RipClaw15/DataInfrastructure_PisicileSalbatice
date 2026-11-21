@@ -28,6 +28,9 @@ export default function Header({ lastRefreshed, onUnpair }: HeaderProps) {
             </h1>
             <div className="flex flex-wrap items-center gap-3">
                 {isFixtureMode && <span className={`${pill} text-muted`}>Sample data</span>}
+                <a href="/" className={`${pill} hover:bg-page`}>
+                    ← Home
+                </a>
                 {PAIRING && (
                     <button onClick={onUnpair} className={`${pill} cursor-pointer hover:bg-page`}>
                         Unpair

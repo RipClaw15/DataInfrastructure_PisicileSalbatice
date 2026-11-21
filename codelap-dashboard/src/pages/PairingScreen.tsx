@@ -128,6 +128,13 @@ export default function PairingScreen({ onPaired }: PairingScreenProps) {
                         {loading ? 'Pairing…' : error}
                     </p>
                 )}
+
+                <a
+                    href="/"
+                    className="inline-flex items-center justify-center rounded-lg border border-line bg-page px-4 py-2 text-sm text-muted transition-colors hover:text-ink"
+                >
+                    ← Back to home
+                </a>
             </div>
         </main>
     )
