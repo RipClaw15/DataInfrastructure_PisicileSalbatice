@@ -200,12 +200,14 @@ The number of rows depends on what **happened** (arm, alert, distance travelled,
 ### Detection rule (backend)
 On **Arm**, save the resting position: the `axes` from the arm request. Then, for each reading received while `GUARDING`:
 
-> angle between the reading's `axes` and the resting `axes` > **15°** → create **one** `picked_up` alert → state `ALERT`
+> angle between the reading's `axes` and the resting `axes` > **6°** → create **one** `picked_up` alert → state `ALERT`
 
 - **Angle** = `acos( (a·b) / (|a| |b|) )` in degrees, where `a`, `b` are the x/y/z vectors.
 - **One alert per session:** while `ALERT`, readings are stored but create no more alerts.
 - Readings received while `DISARMED` are stored as in v0 but never create alerts.
-- Real data: lying on a table the angle stays at ~0.2–0.6°; picking the phone up gives 25–57°.
+- Real data: lying on a table ~0.2–0.6°; writing or tapping on the table up to 4.5°; held level in the hand or carried off,
+  past 6° within 1–2 s (a hand never holds it perfectly level); picked up normally 25–57°. 6° catches a phone carried away
+  level, which 15° missed, and stays clear of writing on the table.
 - v1 starts with `picked_up` only. The other alert types in [`IDEA.md`](IDEA.md) (tipped over, shaken) come in v2, after more testing.
 
 ### `POST /api/devices/{device_id}/arm` *(mobile)*

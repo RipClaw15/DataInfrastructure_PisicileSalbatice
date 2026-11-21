@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlparse
 REQUIRED_FIELDS = ("device_id", "event_type", "value", "unit", "timestamp", "axes")
 
 
-PICKED_UP_DEG = 15.0
+PICKED_UP_DEG = 6.0
 
 events: list[dict] = []
 armed: dict[str, dict] = {}  
@@ -48,7 +48,7 @@ def angle_deg(a: dict, b: dict) -> float:
 
 
 def check_reading(session: dict, reading: dict) -> dict | None:
-    """Contract v1: the first reading more than 15 deg from rest creates the session's one alert."""
+    """Contract v1: the first reading more than 6 deg from rest creates the session's one alert."""
     if session["alert"] or angle_deg(session["axes"], reading["axes"]) <= PICKED_UP_DEG:
         return None
     alert = {

@@ -14,20 +14,20 @@
       {
         "device_id": "phone-ve5xkfoz",
         "type": "picked_up",
-        "timestamp": "2026-11-21T02:28:13Z",
-        "angle_deg": 56.0,
-        "value": 0.979,
+        "timestamp": "2026-11-21T02:28:12Z",
+        "angle_deg": 7.6,
+        "value": 1.032,
         "unit": "g",
         "axes": {
-          "x": -0.541,
-          "y": -0.6,
-          "z": -0.553
+          "x": 0.001,
+          "y": 0.12,
+          "z": -1.025
         }
       }
     ],
     "state_after_reading": {
-      "#1-#11": "GUARDING",
-      "#12-#31": "ALERT"
+      "#1-#10": "GUARDING",
+      "#11-#31": "ALERT"
     }
   },
   "events": [

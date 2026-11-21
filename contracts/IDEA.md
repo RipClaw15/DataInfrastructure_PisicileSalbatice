@@ -41,7 +41,7 @@ When it arms, the phone's **direction of gravity** where it lies is saved. Each 
 
 | Alert | Rule | Real data |
 |---|---|---|
-| **Picked up** | direction changes > **15°** | still on a table: 0.2–0.6° · picked up: **25–57°** |
+| **Picked up** | direction changes > **6°** | still on a table: 0.2–0.6° · writing on the table: ≤ 4.5° · held level or carried: past 6° within 1–2 s · picked up: **25–57°** |
 
 - **Direction, not magnitude:** a resting phone reads 0.92–0.98 g, so magnitude jitters; direction barely moves.
 - **Arms only once it lies still:** otherwise putting it down would count as "picked up".

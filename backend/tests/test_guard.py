@@ -66,7 +66,7 @@ def test_recorded_phone_session(client):
     assert client.post(f"{BASE}/arm", json=session["arm_request"], headers=headers).status_code == 200
     for event in session["events"]:
         assert client.post("/api/me/events", json=event, headers=headers).status_code == 201
-        state = "GUARDING" if event["id"] <= 11 else "ALERT"
+        state = "GUARDING" if event["id"] <= 10 else "ALERT"
         assert client.get(f"{BASE}/status", headers=headers).json()["state"] == state
     alerts = client.get(f"{BASE}/alerts", headers=headers).json()["alerts"]
     assert [{k: v for k, v in a.items() if k != "id"} for a in alerts] == session["expected"]["alerts"]

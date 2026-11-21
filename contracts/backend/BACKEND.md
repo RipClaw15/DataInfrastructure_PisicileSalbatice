@@ -243,7 +243,7 @@ You own the **detection**: the phone only sends readings, you decide what counts
 **alerts**: `id`, `device_id`, `session_id` (FK), `type`, `timestamp`, `angle_deg`, `value`, `x`, `y`, `z`.
 
 ### Detection: run on every `POST /api/events` while the session is `GUARDING`
-One rule: angle to the resting `axes` > **15°** → create a `picked_up` alert. That's it.
+One rule: angle to the resting `axes` > **6°** → create a `picked_up` alert. That's it. (It was 15°, which missed a phone carried away level; see `API_CONTRACT.md`.)
 
 - Angle = `degrees(acos(dot(a, b) / (|a| * |b|)))`; clamp the cosine to [-1, 1] before `acos`.
 - **One alert per session:** once the session has its alert, it's `ALERT` until disarmed; later readings are stored but don't create alerts.

@@ -32,7 +32,7 @@ Console output (while armed, each reading also shows how far it has turned from 
 #14   2026-11-20T19:10:13Z  phone-irbmii9a  x=-0.011 y=-0.557 z=-0.855  |a|=1.021 g  armed,  39.1 deg from rest  [ALERT]
 == DISARMED phone-irbmii9a (was ALERT: picked_up at 2026-11-20T19:10:12Z, 38.5 deg)
 ```
-Rule (contract v1): more than 15° from the resting position → one `picked_up` alert; the state stays `ALERT` until disarmed.
+Rule (contract v1): more than 6° from the resting position → one `picked_up` alert; the state stays `ALERT` until disarmed.
 
 ## Captured readings
 [`captured-readings.json`](captured-readings.json) holds the 189 real readings from the first test (2026-11-20, 3 iPhones and 1 Android phone),
@@ -54,9 +54,8 @@ in the same shape as `GET /api/events` (without `received_at`, which wasn't logg
 | Readings | What happened | Angle from rest | State |
 |---|---|---|---|
 | #1–#10 | lying still on a table | 0.0–0.1° | `GUARDING` |
-| #11 | first touch | 7.6° (under 15°) | `GUARDING` |
-| #12 | picked up | **56.0°** → one `picked_up` alert | `ALERT` |
-| #13–#24 | handled and turned | 25–121° | `ALERT` (no new alerts) |
+| #11 | first touch | **7.6°** → one `picked_up` alert | `ALERT` |
+| #12–#24 | picked up, handled and turned | 25–121° | `ALERT` (no new alerts) |
 | #25–#31 | put back where it was | 0.1–0.2° | still `ALERT` |
 
 It contains the `arm_request`, all 31 readings, and `expected` (the alert and the state after each reading), so it can be replayed as a test.
