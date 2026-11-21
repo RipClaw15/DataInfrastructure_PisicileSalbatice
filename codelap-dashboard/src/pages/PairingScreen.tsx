@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
-import { pair } from './api'
+import { pair } from '../api'
 
-interface Props {
+type PairingScreenProps = {
     onPaired: () => void
 }
 
-export default function PairingScreen({ onPaired }: Props) {
+export default function PairingScreen({ onPaired }: PairingScreenProps) {
     const [code, setCode] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)

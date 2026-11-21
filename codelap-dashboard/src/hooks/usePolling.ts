@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { UnauthorizedError } from './api'
+import { UnauthorizedError } from '../api'
 
 export function usePolling<T>(
     fetcher: () => Promise<T>,

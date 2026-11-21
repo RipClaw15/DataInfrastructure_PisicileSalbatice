@@ -1,43 +1,11 @@
-// Legacy readings dashboard fixtures, retained while the guard API is integrated.
-import meFixture from './fixtures/me.json'
-import eventsFixture from './fixtures/me_events.json'
-import pairFixture from './fixtures/pair_response.json'
-
-export const API_URL: string = import.meta.env.VITE_API_URL ?? ''
-export const POLL_SECONDS = Number(import.meta.env.VITE_POLL_SECONDS ?? 3)
-export const isFixtureMode = API_URL === ''
+import meFixture from '../fixtures/me.json'
+import eventsFixture from '../fixtures/me_events.json'
+import pairFixture from '../fixtures/pair_response.json'
+import {API_URL, isFixtureMode} from "./consts.ts";
+import type {EventsResponse, Me, PairResponse} from "./types.ts";
 
 const TOKEN_KEY = 'viewer_token'
 const FIXTURE_CODE = '482913'
-
-export interface Me {
-    device_id: string
-    device_name: string | null
-    platform: string
-    created_at: string
-    last_seen: string | null
-    online: boolean
-}
-
-export interface Reading {
-    id: number
-    event_type: string
-    value: number
-    unit: string
-    timestamp: string
-    axes: { x: number; y: number; z: number }
-    received_at: string
-}
-
-export interface EventsResponse {
-    device_id: string
-    events: Reading[]
-}
-
-export interface PairResponse {
-    device_id: string
-    viewer_token: string
-}
 
 export class UnauthorizedError extends Error {
     constructor() {
