@@ -1,0 +1,8 @@
+{
+  "device_id": "demo-phone-01",
+  "event_type": "accelerometer",
+  "value": 1.269,
+  "unit": "g",
+  "timestamp": "2026-11-20T18:45:00Z",
+  "axes": { "x": 0.412, "y": -0.655, "z": 1.006 }
+}
