@@ -115,7 +115,7 @@ and propose them as the new `post_event_request.json` / `events.json` in a contr
 Turns the phone into the guard. Details and rules: [`API_CONTRACT.md` → v1](../API_CONTRACT.md#v1-guard).
 
 ### What to build
-1. **Arm / Disarm button** (big, the main control).
+1. **Arm button** (big, the main control). The first Arm asks for a 4-digit **PIN** (entered twice), saved on the phone only. The PIN is the **only** way to disarm.
 2. **Arming delay:** after tapping Arm, show "PUT IT DOWN" and wait until the phone has lain still for 2 s (direction within 0.8°) and at least 5 s have passed.
    Otherwise a phone armed in the hand raises "picked up" as soon as it's put down (seen in testing).
 3. **Arm:** `POST /api/devices/{device_id}/arm` with the **average of those still readings** as the resting position:
@@ -124,34 +124,45 @@ Turns the phone into the guard. Details and rules: [`API_CONTRACT.md` → v1](..
    ```
    Response: the status (`state: "GUARDING"`). Sample: `arm_request.json`, `status_guarding.json`.
    Optional: add `"location": {"lat", "lon", "accuracy_m"}` from `expo-location` (it works in Expo Go). Leave it out without a fix or permission.
-   The same `location` (live) goes on every reading once the status is `ALERT`, and on the manual Send button's reading; the red screen shows it.
-4. **While armed:** send the current reading to `POST /api/events` **every second**, automatically (same JSON as v0).
-   Keep the manual Send button for testing.
-5. **"GUARDING" screen:** dark, large text, time since armed, last send result. Keep the screen awake with `expo-keep-awake`
-   (`npx expo install expo-keep-awake`; it works in Expo Go).
-6. **Red on alert:** while armed, `GET /api/devices/{device_id}/status` every second. When `state` is `ALERT`, turn the screen **red: MOVED**
-   with `last_alert`'s time and angle, and stay red until disarmed.
-7. **Disarm:** `POST /api/devices/{device_id}/disarm`, no body. Response: `state: "DISARMED"`. Sample: `status_disarmed.json`.
-8. **Errors:** arm/disarm use the same timeout and retry rules as sending; status checks and auto-send don't retry (they repeat every second).
-   If arming fails, stay disarmed and show why.
+   The same `location` (live) goes on every reading once the status is `ALERT`, and on the manual Send button's reading.
+4. **While armed, send only what's worth storing** to `POST /api/events` (same JSON as v0), so the database isn't flooded:
+   | When | Send |
+   |---|---|
+   | right after arming | one reading |
+   | the direction turns **> 2°** from the last reading sent | at once, at most 1 per second (table noise is 0.1–0.65°, a pick-up 25°+) |
+   | nothing sent for **30 s** | a heartbeat (the current reading), so "lying still" differs from "gone silent" |
+   | in `ALERT` | a reading with the live `location` whenever the location changes (`expo-location` reports every 10 m), plus the heartbeat |
 
-The **backend** decides what counts as moved; the phone only sends readings and shows the state. (v2 adds a sound on the phone when an alert fires.)
+   About 120 readings an hour for a phone lying still (instead of 3,600). Keep the manual Send button for testing.
+5. **Stealth screen** (`expo-keep-awake` keeps it on; `expo-brightness` at 0; status bar hidden): **pitch black** as soon as it arms. On AMOLED the phone looks dead.
+   Keep the "PUT IT DOWN" screen short (title, countdown, "Tap + PIN to disarm", Cancel): there's only a few seconds to read it.
+   It shows **nothing** about the state: the same before and after an alert. A tap shows only a dim PIN pad (10 s); a wrong PIN just clears, no message.
+6. **Alert:** `GET /api/devices/{device_id}/status` right after each movement reading, and every 10 s. When `state` is `ALERT`, start sending the location (item 4).
+   The phone doesn't change its screen (stealth); the **dashboard** shows the alert.
+7. **Disarm, with the PIN only:** `POST /api/devices/{device_id}/disarm`, no body. Response: `state: "DISARMED"`. Sample: `status_disarmed.json`.
+   Then show what happened ("Picked up at 14:02" or "Nothing happened") and restore the brightness.
+8. **Stealth off** (a switch, for development and the demo): the GUARDING screen (timer, sent/failed) and a red **MOVED** screen with the live location. Disarm still asks for the PIN.
+9. **Errors:** arm/disarm use the same timeout and retry rules as sending; readings and status checks don't retry (the next one follows anyway).
+   If arming fails, stay disarmed and show why. If disarm can't reach the server, stop on the phone anyway.
+
+The **backend** decides what counts as moved; the phone only sends readings and reads the state. (v2 adds a sound on the phone when an alert fires.)
 
 ### Limits to know
 - The app must stay **open and in the foreground**: iOS and Android pause apps in the background. Fine for the demo; mention it as a known limit.
-- Sending every second uses battery and data; plug the guarded phone in for long sessions.
+- A thief can still close the app. The heartbeats then stop, which the backend could report later ("went silent").
+- Turn on Do Not Disturb, so notifications don't light up the black screen.
 
 ### Mock mode
-With an empty `EXPO_PUBLIC_API_URL`: arm returns `status_guarding.json`, disarm returns `status_disarmed.json`, auto-send returns `post_event_response.json`,
-status always says `GUARDING` (so mock mode never turns red; use the dummy server for alerts).
+With an empty `EXPO_PUBLIC_API_URL`: arm returns `status_guarding.json`, disarm returns `status_disarmed.json`, sends return `post_event_response.json`,
+status always says `GUARDING` (so mock mode never raises an alert; use the dummy server for alerts).
 
 ### Done when (v1)
 - [ ] Arm waits until the phone lies still (PUT IT DOWN screen, Cancel works)
 - [ ] Arm/Disarm work against the samples (mock) and the real backend
-- [ ] While armed, one reading per second arrives at the server; stops on disarm
-- [ ] Screen stays awake while guarding
-- [ ] The screen turns red when the server reports `ALERT`, and stays red until disarm
-- [ ] Integrated: arm on a table, pick it up → phone and dashboard turn red within ~2 s
+- [ ] Lying still: one reading every 30 s; moving: readings at once; stops on disarm
+- [ ] Stealth: black as soon as it arms, nothing changes on alert, only the right PIN disarms
+- [ ] With Stealth off: the screen turns red when the server reports `ALERT`, and stays red until disarm
+- [ ] Integrated: arm on a table, pick it up → the dashboard turns red within ~2 s
 
 ## Integration
 1. Backend runs on a laptop → set `EXPO_PUBLIC_API_URL=http://<laptop-LAN-IP>:8000`, restart Expo.

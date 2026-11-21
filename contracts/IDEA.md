@@ -15,10 +15,10 @@ Put it on your laptop or in your bag, tap **Arm**, walk away. If anyone moves it
 - Most people have an old phone in a drawer that could do the job.
 
 ## How it works
-1. **Arm:** tap Arm and put the phone on your stuff. It arms once it lies still.
-2. **Guard:** it sends a reading every second; nothing happens while it lies still.
-3. **Alert:** someone moves it → the dashboard turns **red**: *"14:02 picked up"*. From then on the phone also sends where it is.
-4. **Disarm:** back at your table, see what happened while you were away.
+1. **Arm:** tap Arm and put the phone on your stuff (face down works). It arms once it lies still.
+2. **Guard:** the screen goes **pitch black**, so the phone looks dead. It only sends when it moves, plus a heartbeat every 30 s.
+3. **Alert:** someone moves it → the dashboard turns **red**: *"14:02 picked up"*. The phone stays black, and from then on also sends where it is.
+4. **Disarm:** back at your table, tap the black screen and enter your **PIN**. The phone tells you what happened while you were away.
 
 ---
 
@@ -46,6 +46,10 @@ When it arms, the phone's **direction of gravity** where it lies is saved. Each 
 - **Direction, not magnitude:** a resting phone reads 0.92–0.98 g, so magnitude jitters; direction barely moves.
 - **Arms only once it lies still:** otherwise putting it down would count as "picked up".
 - **The alarm stays on** until you disarm it.
+- **Sends only what matters:** a phone lying still sends ~120 readings an hour instead of 3,600, so the database isn't flooded.
+
+**Stealth:** a thief shouldn't know it's an alarm. While armed the screen is black at minimum brightness (on AMOLED it looks switched off),
+it looks the same before and after an alert, and only the PIN disarms it. A thief can still close the app, but by then the alert has fired.
 
 **Location (optional):** saved once when it arms, then sent live with every reading after an alert.
 It only helps when the phone travels with your stuff (in a bag, a car). On a laptop, a thief can take the laptop and leave the phone, so motion is the alarm and GPS is the bonus.
@@ -55,30 +59,31 @@ Indoors it's rough (±10–50 m), and the app works without it.
 
 ## Architecture
 ```
-Phone (Arm/Disarm) ──readings──▶ Backend (detects, alerts) ◀──▶ Database
+Phone (Arm, PIN) ──readings──▶   Backend (detects, alerts) ◀──▶ Database
                                         ▲
                                         └── Dashboard: DISARMED / GUARDING / ALERT
 ```
 
 | Part | Builds |
 |---|---|
-| **Mobile** | Arm/Disarm, send every second while armed, "GUARDING" screen |
+| **Mobile** | Arm, PIN disarm, black stealth screen, send on movement + heartbeat, location after an alert |
 | **Backend** | store readings, arm state, detection rules, alerts |
-| **Dashboard** | big status, alert history, live chart, online/offline |
+| **Dashboard** | status with a 3D phone (where it lay, where it is now), where it is on a map, activity; sensor data on demand |
 
 ## Roadmap
 | | Adds | Status |
 |---|---|---|
 | **v0** | send, store, show readings | mobile done |
 | **v1** | Arm/Disarm, arm once still, auto-send, "picked up" alert, alarm stays on, optional location | mobile and backend done |
-| **v2** | more alert types (shaken, tipped over) after testing; sound on the phone, browser notification | |
+| **v1.1** | stealth black screen, PIN-only disarm, send on movement + 30 s heartbeat | mobile done |
+| **v2** | more alert types (shaken, tipped over), detect lifting and turning, after testing; sound on the phone, browser notification | |
 | **v3** | pairing code: only you see your alerts | |
 
 ## Demo (2 min)
 1. Dashboard: phone online, **DISARMED**.
-2. Tap Arm, put the phone on a laptop → **GUARDING**.
-3. A judge picks it up → **red: picked up**. Walk off with it: the location follows.
-4. Disarm → back to grey; show the alert history.
+2. Tap Arm, put the phone face down on a laptop → **GUARDING**; the phone goes black.
+3. A judge picks it up: the phone still looks dead, the dashboard turns **red: picked up**. Walk off with it: the location follows.
+4. Enter the PIN on the phone → disarmed, back to grey; show the alert history.
 
 ## Open questions
 - Name?

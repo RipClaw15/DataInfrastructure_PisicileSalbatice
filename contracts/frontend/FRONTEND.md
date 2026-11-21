@@ -112,35 +112,47 @@ Once the backend runs, the backend person's **simulator** (`tools/simulator/`) a
 - [ ] `npm run build` succeeds (this runs in CI)
 
 ## v1: Guard
-The dashboard is where the alert **shows up**, so this is the demo moment. Full spec: [`API_CONTRACT.md` → v1](../API_CONTRACT.md#v1-guard).
+The dashboard is where the alert **shows up**, so this is the demo moment. It's the **only** place: the guarded phone stays black (it looks dead) and is disarmed with a PIN on the phone, so the dashboard stays read-only. Full spec: [`API_CONTRACT.md` → v1](../API_CONTRACT.md#v1-guard).
 
 ### New API calls (add to `src/api.ts`, same fixture/API switch as v0)
 | Function | Endpoint | Fixture |
 |---|---|---|
 | `getStatus(deviceId)` | `GET /api/devices/{device_id}/status` | `status_alert.json` (switch to `status_guarding.json` / `status_disarmed.json` to test each state) |
 | `getAlerts(deviceId, limit = 20)` | `GET /api/devices/{device_id}/alerts` | `alerts.json` |
+| `getLive(deviceId)` | `GET /api/devices/{device_id}/live` | the newest reading in `events.json` (alert), or the one closest to `armed_at` |
 
 `device_id` comes from the newest reading in `GET /api/events` (v0).
 
 ### What to build
-1. **Big status** at the top, readable from across the room:
+The owner glances at it to answer three questions: is my stuff safe, since when, where is it. Plain words, no sensor terms in the main view.
+
+1. **Status** at the top, readable from across the room, with a **3D phone** on a table:
    | State | Look | Text |
    |---|---|---|
-   | `DISARMED` | grey | "Not guarding" |
-   | `GUARDING` | green | "Guarding since 20:10" |
-   | `ALERT` | **red**, pulsing | "Picked up at 20:10:12" (from `last_alert`) |
-2. **Alert history**: newest first, one row per alert (one per armed session): time, "Picked up", and `angle_deg`°. v2 adds more types.
-3. **Chart**: the v0 magnitude chart, with a shaded band from `armed_at` and a marker at each alert's `timestamp`.
-4. **Phone card**: `online` and `last_seen` now come from `status`.
-5. **Polling**: status every **1 s** while `GUARDING` or `ALERT` (so the alert appears fast), every `VITE_POLL_SECONDS` otherwise.
-6. **Location** (optional): `status` can carry `location` (where it was armed) and `last_location` (live, sent after an alert).
-   While `GUARDING`, show "Armed at lat, lon". On `ALERT`, show `last_location` **in red** as "Now at lat, lon (±m)" (a map pin is a bonus).
-   Hide it when the fields are missing; the fixtures don't have them yet.
+   | `DISARMED` | grey phone lying flat | "Not guarding" + "Arm the phone in the StayPut app and put it on your stuff." |
+   | `GUARDING` | aqua phone where it lies | "Your stuff is safe" + "If it's moved, you'll see it here." |
+   | `ALERT` | red phone, tilted as measured, a dashed outline where it lay | "Your phone was picked up" + time, and that the alarm stays on until disarmed with the PIN |
+
+   The phone's pose comes from a reading's `axes` (the gravity direction, so tilt only, not turning). Where it lay: the `armed` snapshot in
+   `GET /api/events`. Where it is now: `GET /api/devices/{device_id}/live`, polled every 1 s while armed; the phone moves only when a new
+   reading arrives. Below it: the angle between the two, "50° from where it lay".
+2. **Strip** with two figures: **Phone** (Connected / Not connected, "Last heard from 2 min ago") and **Guarding for** ("4 h 22 min", since 11:57; "Off" when not guarding).
+3. **Map**, always there: on `ALERT` the live `last_location`, "Where your phone is now", following it as it moves; while guarding,
+   and in an alert before the first live location arrives, the armed `location`, "Where you left your phone". Not guarding: `last_location`,
+   "Last known location" (e.g. from the last alert). No location at all: the world, without a pin, "No location yet"; it zooms in when the first one arrives.
+4. **Activity**: a timeline, newest first: the alerts ("Picked up") and when the current session was armed, each with the time and "4 h ago".
+5. **Sensor data**, closed by default: the g values, the magnitude chart and the readings table, for demos and debugging.
+   `GET /api/events` returns only the **kept** readings (arm, picked up, GPS trail, disarm, with `snapshot_reason`), so the chart is a history, not a recording.
+6. **Polling**: status and live every **1 s** while `GUARDING` or `ALERT` (so the alert appears fast), every `VITE_POLL_SECONDS` otherwise.
+
+The landing page is at `/` and links to the dashboard at `/dashboard` (one app, one `npm run dev`). Colours are the shared tokens in
+`src/index.css` (also used by the mobile app): ink-blue backgrounds, Sky Aqua `#54c3ea` as the accent and for "safe", alarm red `#f2545b` as the
+only warm colour, amber `#f2b441` only for warnings. One typeface, Schibsted Grotesk; labels in sentence case.
 
 ### Done when (v1)
-- [ ] All three states render from the fixtures; `ALERT` is impossible to miss
-- [ ] Alert history and chart marker from `alerts.json`
-- [ ] With the real API: arm the phone, pick it up → the page turns red within ~2 s
+- [ ] All three states render from the fixtures (`/dashboard?state=alert|guarding|disarmed`); `ALERT` is impossible to miss
+- [ ] The 3D phone lies flat while guarding and tilts on an alert, with the angle below it
+- [ ] With the real API: arm the phone, pick it up → the page turns red within ~2 s; walk off → the map follows
 
 ## Integration
 1. Backend runs locally → `VITE_API_URL=http://localhost:8000` (or the backend laptop's IP; every laptop on the WiFi has its own), restart `npm run dev`.
@@ -148,7 +160,7 @@ The dashboard is where the alert **shows up**, so this is the demo moment. Full 
 3. Cloud: build with `VITE_API_URL=<Azure backend URL>` and deploy `dist/` to Azure Static Web Apps. Nothing in the code changes.
 
 ## Coming next (not yet)
-- **v2**: browser notification + sound when the state turns `ALERT`.
+- **v2**: browser notification + sound when the state turns `ALERT`; "Lifted" and "Turned" alerts (the phone will detect them, see `API_CONTRACT.md` → Next versions).
 - **v3, my phone, my data**: the pairing screen (enter a 6-digit code from the phone). Turn on the one you already built with `VITE_PAIRING=true`.
 
 ## Git workflow

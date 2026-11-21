@@ -112,14 +112,16 @@ Header: `Content-Type: application/json`. Request: [`mobile/post_event_request.j
 | `location` | object | no | live position, same shape as the arm `location`. Sent by the manual Send button and by every reading while `ALERT` (the phone may be on the move) |
 
 Responses:
-- `201`: [`mobile/post_event_response.json`](mobile/post_event_response.json): `{"id": 152, "device_id": "demo-phone-01", "received_at": "..."}`
+- `201`: [`mobile/post_event_response.json`](mobile/post_event_response.json): `{"id": 152, "device_id": "demo-phone-01", "received_at": "...", "stored": true}`.
+  `stored: false` with `id: 0` means the reading was checked (detection ran) but not kept: the backend keeps only state changes ([v1 → What the backend stores](#what-the-backend-stores)). Both are a success.
 - `422`: validation error (FastAPI default body). **Do not retry.**
 - `5xx` / network error: **retry** up to 3x with backoff of 1 s, 2 s, 4 s, then show "failed" in the app.
 
 ### `GET /api/events?limit=50`: stored readings, newest first *(frontend)*
 `limit` default 50, min 1, max 500 (outside → `422`).
 `200`: [`frontend/events.json`](frontend/events.json): `{"events": [...]}`. Each event is the request fields plus `id` and `received_at`.
-Empty list before the first reading.
+Empty list before the first reading. Since v1 these are the **kept** readings only, each with an optional `snapshot_reason`
+(`armed`, `picked_up`, `gps_update`, `disarmed`): a history of what happened, not a continuous recording. For the latest value, use `live` (v1).
 
 ### `GET /health`
 `200`: `{"status": "ok"}`. Used by Azure and the CD smoke test.
@@ -150,7 +152,25 @@ Empty list before the first reading.
 
 ## v1: Guard
 
-Arm the phone → it sends a reading every second → the **backend** compares each reading with the armed position and creates **alerts** → the dashboard shows them.
+Arm the phone → it sends readings when it moves (plus a heartbeat) → the **backend** compares each reading with the armed position and creates **alerts** → the dashboard shows them.
+
+### What the phone sends while armed
+Only what's worth storing, so the database isn't flooded (about 120 readings an hour for a phone lying still):
+| When | Sends |
+|---|---|
+| Right after arming | one reading |
+| Direction turns **> 2°** from the last reading sent | a reading at once, at most 1 per second |
+| Nothing sent for **30 s** | a heartbeat (the current reading) |
+| In `ALERT` | a reading with the live `location` whenever the location changes, plus the heartbeat |
+
+Readings are the same `POST /api/events` as in v0. A phone lying still sends one every 30 s, so `online` (5-minute window) stays true; no heartbeat means it went silent.
+
+### What the backend stores
+Every reading is checked for an alert, but only these are kept as rows: **arm**, the **picked-up** reading, **disarm**, and during `ALERT` a GPS trail
+(the first fix at once, then a new one only after **30 s and 25 m**, or the fixes' accuracy if larger; set with `ALERT_GPS_INTERVAL_SECONDS` / `ALERT_GPS_DISTANCE_METERS`).
+Everything else is answered `201` with `stored: false` and only held in memory as the device's latest reading (for `live`, `last_seen` and `online`).
+The phone sends less (battery, data) and the backend keeps less (database): both together.
+The phone shows nothing while armed (a black screen that looks dead) and disarms only with a PIN on the phone; the **dashboard** is where the alert shows up.
 
 ### States
 | State | Meaning | How you get there |
@@ -182,7 +202,7 @@ Optional `location`: where the phone was armed, `{"lat": 46.77, "lon": 23.59, "a
 `422`: missing/invalid `axes` or `timestamp`.
 
 ### `POST /api/devices/{device_id}/disarm` *(mobile)*
-No body. `200`: the new status ([`mobile/status_disarmed.json`](mobile/status_disarmed.json)). Disarming when already disarmed is fine (same response).
+Sent after the owner enters the right PIN on the phone. No body. `200`: the new status ([`mobile/status_disarmed.json`](mobile/status_disarmed.json)). Disarming when already disarmed is fine (same response).
 
 ### `GET /api/devices/{device_id}/status` *(frontend; mobile while armed)*
 `200`: one of [`status_disarmed.json`](frontend/status_disarmed.json), [`status_guarding.json`](frontend/status_guarding.json), [`status_alert.json`](frontend/status_alert.json).
@@ -202,6 +222,10 @@ No body. `200`: the new status ([`mobile/status_disarmed.json`](mobile/status_di
 - `online`: last reading arrived within the last 5 minutes. `last_seen`: `timestamp` of the newest reading.
 - `404` `{"detail": "Device not found"}` if the phone never sent a reading or armed.
 - The dashboard gets `device_id` from the newest reading in `GET /api/events`.
+
+### `GET /api/devices/{device_id}/live` *(frontend)*
+The latest reading the backend received from this phone (same shape as an event, `id` 0 if it wasn't kept), or `null` if none arrived in the last 10 minutes.
+Held in memory only: not history, gone after a backend restart. `404` if the phone is unknown.
 
 ### `GET /api/devices/{device_id}/alerts?limit=20` *(frontend)*
 Newest first, all sessions. `limit` default 20, min 1, max 200. `200`: [`frontend/alerts.json`](frontend/alerts.json):
@@ -235,10 +259,10 @@ Real readings, re-timed into one story so every state appears:
 The alert values in the samples were computed with exactly the rule above, so backend tests can use them as expected output.
 
 ### Done when (v1)
-- Mobile: Arm/Disarm; arms only once the phone lies still; while armed, sends a reading every second; "GUARDING" screen that turns red on `ALERT`.
+- Mobile: Arm, disarm with the PIN; arms only once the phone lies still; while armed, sends on movement plus a 30 s heartbeat; black stealth screen.
 - Backend: arm/disarm/status/alerts match the samples; the demo session above produces exactly 1 alert.
 - Frontend: big DISARMED / GUARDING / ALERT status and the alert history, from the samples, then from the real API.
-- Integrated: arm the phone, pick it up, and the dashboard and the phone turn red within ~2 seconds.
+- Integrated: arm the phone, pick it up, and the dashboard turns red within ~2 seconds (the phone stays black).
 
 ---
 
@@ -252,4 +276,7 @@ CORS: the backend must allow the frontend's origin (localhost dev port plus the 
 
 ## Next versions (not part of the contract yet)
 - **v2:** more alert types (`tipped_over`, `shaken`, see [`IDEA.md`](IDEA.md)), tested on real phones first; sound and vibration on the guarded phone; browser notification on the dashboard.
+- **v2, lifting and turning:** today a level lift or a flat turn on the table raises no alarm, because neither changes the direction of gravity.
+  The phone would watch for a jolt (accelerometer magnitude) and for turning (gyroscope) between sends, report them in a `motion` field,
+  and the backend would raise `lifted` / `turned`. The limits get measured on real phones first, so a bumped table doesn't count.
 - **v3, my phone, my data:** pairing code, so only your dashboard sees your phone and its alerts.
