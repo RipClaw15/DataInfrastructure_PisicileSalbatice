@@ -284,6 +284,27 @@ The alert values in the samples were computed with exactly the rule above, so ba
 
 ---
 
+## Delete my data
+With pairing, every request carries the phone's token (`Authorization: Bearer <device_token>`) and the paths are under `/api/me`
+(this contract still describes the paths before pairing; to be updated).
+
+### Arming needs a paired dashboard
+The dashboard is where the alarm shows up, so a phone without one can't be armed.
+- `POST /api/me/arm` answers `409` `{"detail": "Pair a dashboard first: it's where the alarm shows up."}` while no dashboard is paired.
+  The backend setting `REQUIRE_DASHBOARD_TO_ARM` (default `true`) turns the rule off, e.g. for tests.
+- `GET /api/me` (and `PATCH /api/me`) also return `paired_dashboards`: how many dashboards follow this phone.
+- The app shows **either** the pairing step **or** Arm: with no dashboard, only "Pair a dashboard first" and the code;
+  once one is paired, only Arm (more dashboards are added under Settings). While a code is showing, it checks every
+  few seconds whether a dashboard has used it.
+- Deleting the phone's data removes its dashboards too, so it has to be paired again before arming.
+
+### `DELETE /api/me` *(mobile)*
+Deletes the phone and **everything** stored about it: readings, the GPS trail, alerts, armed sessions, pairing codes and every
+paired dashboard's token. `204`, no body. Afterwards the phone's token and its dashboards' tokens get `401`, and the ID is free again.
+- Only the **phone's own token** can delete (`403` for a dashboard's read-only token, `401` without a token).
+- The app asks for confirmation, then forgets its ID and token and registers again as a new phone.
+- Other phones are never touched.
+
 ## Integration phases
 1. **Independent**: everyone works against the samples.
 2. **Local integration**: backend runs on one laptop (Docker Compose + Postgres), and the frontend and phone point at it.
