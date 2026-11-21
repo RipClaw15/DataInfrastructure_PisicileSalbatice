@@ -188,7 +188,7 @@ export function useGuard(deviceId: string | null, reading: Reading | null, locat
     } else {
       setPhase('disarmed');
       setError(
-        `Could not arm: ${result.reason}.\n` +
+        `Couldn't start guarding: ${result.reason}.\n` +
           'Check that the server in EXPO_PUBLIC_API_URL is running, or start the dummy server from the repo root:\n' +
           'python mobile/dev-server/server.py',
       );

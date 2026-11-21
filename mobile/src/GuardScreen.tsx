@@ -39,7 +39,7 @@ export function GuardScreen(props: Props) {
 
 function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, onCancel }: Props) {
   const message =
-    phase === 'arming' ? 'Arming…' : settleSecondsLeft > 0 ? `Arming in ${settleSecondsLeft}` : isStill ? 'Arming…' : 'Hold still…';
+    phase === 'arming' ? 'Starting…' : settleSecondsLeft > 0 ? `Starting in ${settleSecondsLeft}` : isStill ? 'Starting…' : 'Hold still…';
 
   return (
     <View style={styles.screen}>
@@ -47,7 +47,7 @@ function ArmingDelay({ phase, settleSecondsLeft, isStill, stealth: isStealth, on
       <View style={styles.center}>
         <Text style={[styles.title, styles.settling]}>PUT IT DOWN</Text>
         <Text style={styles.big}>{message}</Text>
-        {isStealth && <Text style={styles.hint}>Tap + PIN to disarm</Text>}
+        {isStealth && <Text style={styles.hint}>Tap + PIN to stop</Text>}
       </View>
       <Pressable
         onPress={onCancel}
@@ -99,7 +99,7 @@ function Guarding({ phase, armedAt, stats, magnitude, location, alert, pin, onDi
       <StatusBar style="light" />
       {askPin ? (
         <View style={styles.center}>
-          <Text style={styles.hint}>Enter your PIN to disarm</Text>
+          <Text style={styles.hint}>Enter your PIN to stop guarding</Text>
           <PinPad color={colors.ink} pressedColor={colors.card} onComplete={(entered) => entered === pin && onDisarm()} />
         </View>
       ) : alert ? (
@@ -131,7 +131,7 @@ function Guarding({ phase, armedAt, stats, magnitude, location, alert, pin, onDi
         disabled={disarming}
         style={({ pressed }) => [styles.button, styles.secondaryButton, (pressed || disarming) && styles.buttonPressed]}
       >
-        <Text style={styles.secondaryText}>{disarming ? 'Disarming…' : askPin ? 'Back' : 'Disarm'}</Text>
+        <Text style={styles.secondaryText}>{disarming ? 'Stopping…' : askPin ? 'Back' : 'Stop guarding'}</Text>
       </Pressable>
     </View>
   );

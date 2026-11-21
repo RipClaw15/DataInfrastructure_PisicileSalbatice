@@ -321,11 +321,11 @@ export default function App() {
     return (
       <View style={[styles.screen, styles.pinScreen]}>
         <StatusBar style="light" />
-        <Text style={styles.title}>{pinSetup.step === 'confirm' ? 'Enter it again' : 'Set a disarm PIN'}</Text>
+        <Text style={styles.title}>{pinSetup.step === 'confirm' ? 'Enter it again' : 'Set a PIN'}</Text>
         <Text style={[styles.small, styles.center]}>
           {pinSetup.mismatch
             ? "The PINs didn't match. Try again."
-            : 'Four digits. While armed, this PIN is the only way to disarm. It stays on this phone.'}
+            : 'Four digits. While the phone is guarding, this PIN is the only way to stop it. It stays on this phone.'}
         </Text>
         <PinPad color={colors.ink} pressedColor={colors.line} onComplete={onPinEntered} />
         <Pressable onPress={() => setPinSetup(null)} style={({ pressed }) => [styles.link, pressed && styles.buttonPressed]}>
@@ -354,7 +354,7 @@ export default function App() {
             <View style={styles.intro}>
               <Text style={styles.headline}>Pair a dashboard first</Text>
               <Text style={styles.body}>
-                The dashboard is where the alarm shows up. Show a code here and enter it on the dashboard; then you can arm.
+                The dashboard is where the alarm shows up. Show a code here and enter it on the dashboard; then you can start guarding.
               </Text>
             </View>
             {pairingBlock('Show dashboard code')}
@@ -379,9 +379,8 @@ export default function App() {
               disabled={!canArm}
               style={({ pressed }) => [styles.button, styles.armButton, !canArm && styles.buttonDisabled, pressed && styles.buttonPressed]}
             >
-              <Text style={styles.armText}>Arm</Text>
+              <Text style={styles.armText}>Start guarding</Text>
             </Pressable>
-            <Text style={[styles.small, styles.center]}>Put it down and step back. To disarm, tap the black screen and enter your PIN.</Text>
             {guard.error && <Text style={[styles.status, styles.statusFailed]}>{guard.error}</Text>}
           </>
         )}
@@ -464,8 +463,8 @@ export default function App() {
 
           <View style={styles.listRow}>
             <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>Disarm PIN</Text>
-              <Text style={styles.small}>{pin ? 'Set. It stays on this phone.' : 'Asked for when you first arm.'}</Text>
+              <Text style={styles.rowLabel}>PIN</Text>
+              <Text style={styles.small}>{pin ? 'Set. It stays on this phone.' : 'Asked for when you first start guarding.'}</Text>
             </View>
             <Pressable
               onPress={() => setPinSetup({ step: 'enter', thenArm: false })}
@@ -555,7 +554,7 @@ function LastSession({ session }: { session: SessionSummary }) {
       <Text style={[styles.sessionText, alert && styles.alertText]}>
         {alert
           ? `Picked up at ${new Date(alert.timestamp).toLocaleTimeString()} (${Math.round(alert.angle_deg)}°)`
-          : `Nothing happened (armed at ${since})`}
+          : `Nothing happened (guarding since ${since})`}
       </Text>
     </View>
   );
@@ -586,10 +585,10 @@ function locationLabel(gps: LocationState): string {
     case 'checking':
       return 'Asking for permission…';
     case 'denied':
-      return 'Permission denied: arming works without location';
+      return 'Permission denied: guarding works without location';
     case 'ready':
       if (!gps.point) return 'Waiting for a fix…';
-      return `${gps.point.accuracy_m === null ? '' : `±${gps.point.accuracy_m} m. `}Sent with Arm, Send reading, and after an alert`;
+      return `${gps.point.accuracy_m === null ? '' : `±${gps.point.accuracy_m} m. `}Sent when guarding starts, with Send reading, and after an alert`;
   }
 }
 
