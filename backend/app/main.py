@@ -15,13 +15,14 @@ from .routes.me import router as me_router
 from .routes.events import router as events_router
 from .routes.guard import router as guard_router
 from .db import Base
-from .models import Alert, ArmSession, Event
+from .models import Alert, ArmSession, Event, EventLocation, SessionLocation
 
 @asynccontextmanager
 async def lifespan(app):
     if settings.database_url:
         Base.metadata.create_all(
-            get_engine(), tables=[Event.__table__, ArmSession.__table__, Alert.__table__],
+            get_engine(), tables=[Event.__table__, ArmSession.__table__, Alert.__table__,
+                                 EventLocation.__table__, SessionLocation.__table__],
         )
     yield
 
@@ -29,7 +30,8 @@ async def lifespan(app):
 app = FastAPI(title="StayPut API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_origins=[origin.strip().rstrip("/") for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
 )

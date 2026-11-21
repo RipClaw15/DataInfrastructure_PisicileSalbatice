@@ -13,7 +13,8 @@ class Settings(BaseSettings):
 
     # Optional while the deployed app does not have a database configured.
     database_url: str | None = None
-    cors_origins: str = "http://localhost:5173"
+    # Temporary development setting. Override with explicit origins for production.
+    cors_origins: str = "*"
 
 
 settings = Settings()

@@ -2,11 +2,14 @@ FROM node:26-slim AS dashboard-build
 
 WORKDIR /web/codelap-dashboard
 COPY codelap-dashboard/package.json codelap-dashboard/package-lock.json ./
-RUN npm ci
+# Temporary workaround for the upstream TypeScript/ESLint peer conflict.
+# Keep Vigu's package.json and lockfile unchanged.
+RUN npm ci --legacy-peer-deps
 COPY codelap-dashboard/ ./
 # Fixture imports must resolve at build time, even for a live API build.
 COPY contracts/frontend/ /web/contracts/frontend/
-ARG VITE_API_URL=/
+# Vigu's frontend expects a full API URL; configure this build argument per deployment.
+ARG VITE_API_URL=https://fastapi-production-8b528611.up.railway.app
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_PAIRING=false
 RUN npm run build -- --base=/dashboard/

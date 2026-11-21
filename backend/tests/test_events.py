@@ -69,11 +69,21 @@ def test_samples(client):
     assert [strip(e) for e in actual] == [strip(e) for e in samples]
 
 
-def test_cors(client):
+@pytest.mark.parametrize("origin", [
+    "https://porsche.csongorosz.com", "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:8000", "http://127.0.0.1:8000",
+    "https://another-development-dashboard.example",
+])
+def test_cors(client, origin):
     response = client.options("/api/events", headers={
-        "Origin": "http://localhost:5173",
+        "Origin": origin,
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "Content-Type",
     })
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert response.headers["access-control-allow-origin"] == "*"
+    # Browsers also need the header on the actual response, not just preflight.
+    actual = client.get("/api/events", headers={"Origin": origin})
+    assert actual.status_code == 200
+    assert actual.headers["access-control-allow-origin"] == "*"
+    assert "access-control-allow-credentials" not in actual.headers

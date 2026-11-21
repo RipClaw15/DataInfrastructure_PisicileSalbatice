@@ -91,3 +91,25 @@ class Alert(Base):
 
 
 Index("ix_alerts_device_timestamp", Alert.device_id, Alert.timestamp.desc())
+
+
+class SessionLocation(Base):
+    """Optional GPS fix saved with an arm session, without altering existing rows."""
+
+    __tablename__ = "session_locations"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("arm_sessions.id"), primary_key=True)
+    lat: Mapped[float]
+    lon: Mapped[float]
+    accuracy_m: Mapped[float | None]
+
+
+class EventLocation(Base):
+    """Optional GPS fix associated with an individual stored reading."""
+
+    __tablename__ = "event_locations"
+
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), primary_key=True)
+    lat: Mapped[float]
+    lon: Mapped[float]
+    accuracy_m: Mapped[float | None]

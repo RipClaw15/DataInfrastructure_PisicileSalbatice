@@ -6,14 +6,14 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..guard import alert_response, device_status, lock_device, open_session, require_device, utc_now
-from ..models import Alert, ArmSession
+from ..models import Alert, ArmSession, SessionLocation
 from ..schemas import AlertsResponse, ArmRequest, DeviceId, GuardStatus
 
 router = APIRouter(prefix="/api/devices", tags=["guard"])
 Database = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/{device_id}/arm", response_model=GuardStatus)
+@router.post("/{device_id}/arm", response_model=GuardStatus, response_model_exclude_unset=True)
 def arm(device_id: DeviceId, payload: ArmRequest, db: Database):
     lock_device(db, device_id)
     previous = open_session(db, device_id)
@@ -21,17 +21,21 @@ def arm(device_id: DeviceId, payload: ArmRequest, db: Database):
         previous.disarmed_at = utc_now()
         # Close the previous session before inserting, satisfying the unique index.
         db.flush()
-    db.add(ArmSession(
+    session = ArmSession(
         device_id=device_id, armed_at=payload.timestamp,
         rest_x=payload.axes.x, rest_y=payload.axes.y, rest_z=payload.axes.z,
-    ))
+    )
+    db.add(session)
     db.flush()
+    if payload.location is not None:
+        db.add(SessionLocation(session_id=session.id, **payload.location.model_dump()))
+        db.flush()
     result = device_status(db, device_id)
     db.commit()
     return result
 
 
-@router.post("/{device_id}/disarm", response_model=GuardStatus)
+@router.post("/{device_id}/disarm", response_model=GuardStatus, response_model_exclude_unset=True)
 def disarm(device_id: DeviceId, db: Database):
     lock_device(db, device_id)
     session = open_session(db, device_id)
@@ -43,7 +47,7 @@ def disarm(device_id: DeviceId, db: Database):
     return result
 
 
-@router.get("/{device_id}/status", response_model=GuardStatus)
+@router.get("/{device_id}/status", response_model=GuardStatus, response_model_exclude_unset=True)
 def status(device_id: DeviceId, db: Database):
     require_device(db, device_id)
     return device_status(db, device_id)

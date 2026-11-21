@@ -34,9 +34,16 @@ class Axes(BaseModel):
     z: Number
 
 
+class Location(BaseModel):
+    lat: Annotated[Number, Field(ge=-90, le=90)]
+    lon: Annotated[Number, Field(ge=-180, le=180)]
+    accuracy_m: Annotated[Number, Field(ge=0)] | None = None
+
+
 class ArmRequest(BaseModel):
     timestamp: AwareDatetime
     axes: Axes
+    location: Location | None = None
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -113,6 +120,8 @@ class GuardStatus(BaseModel):
     last_seen: UtcTimestamp | None
     online: bool
     last_alert: AlertResponse | None
+    location: Location | None = None
+    last_location: Location | None = None
 
 
 class AlertsResponse(BaseModel):

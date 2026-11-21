@@ -8,8 +8,8 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .detection import picked_up_angle
-from .models import Alert, ArmSession, Event
-from .schemas import AlertResponse, GuardStatus
+from .models import Alert, ArmSession, Event, EventLocation, SessionLocation
+from .schemas import AlertResponse, GuardStatus, Location
 
 
 def utc_now() -> datetime:
@@ -44,7 +44,7 @@ def require_device(db: Session, device_id: str) -> None:
 def alert_response(alert: Alert) -> AlertResponse:
     return AlertResponse(
         id=alert.id, device_id=alert.device_id, type=alert.type,
-        timestamp=alert.timestamp, angle_deg=alert.angle_deg, value=alert.value,
+        timestamp=alert.timestamp, angle_deg=alert.angle_deg, value=alert.value, unit="g",
         axes={"x": alert.x, "y": alert.y, "z": alert.z},
     )
 
@@ -52,6 +52,17 @@ def alert_response(alert: Alert) -> AlertResponse:
 def device_status(db: Session, device_id: str) -> GuardStatus:
     session = open_session(db, device_id)
     alert = db.scalar(select(Alert).where(Alert.session_id == session.id)) if session else None
+    armed_location = db.get(SessionLocation, session.id) if session else None
+    latest_location = db.scalar(select(EventLocation).join(Event, Event.id == EventLocation.event_id)
+                                .where(Event.device_id == device_id)
+                                .order_by(Event.timestamp.desc(), Event.id.desc()).limit(1))
+    locations = {}
+    if armed_location:
+        locations["location"] = Location(lat=armed_location.lat, lon=armed_location.lon,
+                                         accuracy_m=armed_location.accuracy_m)
+    if latest_location:
+        locations["last_location"] = Location(lat=latest_location.lat, lon=latest_location.lon,
+                                              accuracy_m=latest_location.accuracy_m)
     last_seen, last_received = db.execute(select(
         func.max(Event.timestamp), func.max(Event.received_at),
     ).where(Event.device_id == device_id)).one()
@@ -67,6 +78,7 @@ def device_status(db: Session, device_id: str) -> GuardStatus:
         armed_at=session.armed_at if session else None,
         last_seen=last_seen, online=online,
         last_alert=alert_response(alert) if alert else None,
+        **locations,
     )
 
 
