@@ -161,7 +161,7 @@ Only when something changes, plus a heartbeat (about 120 readings an hour for a 
 | Right after arming | one reading |
 | Direction turns **> 2°** from the last reading sent | a reading at once, at most 1 per second |
 | Nothing sent for **30 s** | a heartbeat (the current reading) |
-| In `ALERT` | the same, with the live `location` on every reading, plus a reading whenever the location changes |
+| In `ALERT` | the same, with the live `location` on every reading, plus a reading with a fresh GPS position every **5 s** |
 
 Readings are the same `POST /api/events` as in v0. A phone lying still sends one every 30 s, so `online` (5-minute window) stays true; no heartbeat means it went silent.
 
@@ -182,7 +182,7 @@ Example: armed for an hour, then taken and carried off for 10 minutes.
 |---|---|---|
 | 50 min lying still | ~100 heartbeats | 1 (`armed`) |
 | Picked up | 1 | 1 (`picked_up`, with the first GPS fix) |
-| 10 min on the move | up to ~600 (movement, at most 1/s) + location changes | ~20 (`gps_update`, at most one per 30 s) |
+| 10 min on the move | up to ~600 (movement, at most 1/s) + a GPS position every 5 s | ~20 (`gps_update`, at most one per 30 s) |
 | Disarmed | (disarm request) | 1 (`disarmed`) |
 | **Total** | **~700** | **~23** |
 

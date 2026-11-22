@@ -2,7 +2,7 @@
 
 **An old phone that guards your stuff.**
 
-StayPut turns a spare phone into a motion alarm for your laptop or bag. Arm it,
+StayPut turns a spare phone into a motion alarm for your laptop or bag. Start guarding,
 put it down, and monitor it from a paired web dashboard. If the phone is picked
 up, the backend raises an alert and the dashboard shows what happened and the
 last known location.
@@ -14,12 +14,12 @@ Built for the Codelap Hackathon 2026 by **Pisicile Sălbatice**.
 1. Open the mobile app and generate a dashboard pairing code.
 2. Enter the six-digit code at `/dashboard` in the web app. Codes are single-use
    and expire after 10 minutes by default.
-3. Set a four-digit disarm PIN, tap **Arm**, and put the phone on your belongings.
+3. Set a four-digit PIN, tap **Start guarding**, and put the phone on your belongings.
    The app waits for it to settle before saving its resting orientation.
 4. While guarding, the phone can show a black screen at minimum brightness.
-   Movement greater than **15°** from the resting orientation triggers a
+   Movement greater than **6°** from the resting orientation triggers a
    **picked up** alert on the dashboard.
-5. Tap the phone's screen and enter the PIN to disarm it.
+5. Tap the phone's screen and enter the PIN to stop guarding.
 
 The dashboard shows **DISARMED**, **GUARDING**, or **ALERT**, a 3D view of the
 phone's orientation, a location map, activity, and optional sensor details.
@@ -78,8 +78,8 @@ network address automatically.
    in Safari and choose Expo Go.
 4. Tap **Show dashboard code** in the app and enter the six-digit code in the
    dashboard.
-5. Set a PIN, arm the phone, let it settle, then pick it up to trigger an alert.
-   Enter the PIN on the phone to disarm.
+5. Set a PIN, tap **Start guarding**, let it settle, then pick it up to trigger an alert.
+   Enter the PIN on the phone to stop guarding.
 
 The launcher installs all project dependencies **inside Docker**. Docker runs
 Expo's development server; the native app and sensors run on the physical phone.
