@@ -102,13 +102,15 @@ Expo Go may require the development server and phone to use the same Expo
 account. If it reports that Expo CLI is not signed in, run from the repository:
 
 ```bash
-docker compose exec -e CI=0 mobile npx expo login
+docker compose exec -e CI=0 mobile npx expo login --no-browser
 docker compose restart mobile
 ```
 
 Enter the **same account as Expo Go** in the terminal prompts, then reopen the
 Expo link on the phone. `CI=0` enables the interactive login prompt inside the
-container. The CLI runs in LAN mode with internet available to resolve your
+container. `--no-browser` avoids an OAuth callback to an unpublished localhost
+port inside Docker. Enter credentials in the terminal prompts. The CLI runs in
+LAN mode with internet available to resolve your
 account; the API and database still run locally. The login is kept in a named
 Docker volume across container rebuilds. To check the account, run
 `docker compose exec mobile npx expo whoami`. To sign out, run
