@@ -84,3 +84,20 @@ jobs:
 
       - name: Build multi-stage Docker image
         run: docker build --tag stayput-ci .
+
+  windows-launcher:
+    name: Windows launcher (network selection)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate address selection and launcher syntax
+        shell: pwsh
+        run: ./tools/test_network.ps1
+      - name: Check Linux shell scripts retain LF line endings
+        shell: pwsh
+        run: |
+          foreach ($path in @('start.sh', 'mobile/docker-start.sh')) {
+            if ([System.IO.File]::ReadAllText($path).Contains("`r")) {
+              throw "$path contains Windows CRLF line endings"
+            }
+          }

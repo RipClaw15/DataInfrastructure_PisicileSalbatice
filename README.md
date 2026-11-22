@@ -139,6 +139,27 @@ laptop's firewall. First builds need internet to download images/dependencies;
 map tiles also require internet. This Compose configuration uses development
 database credentials and is intended for local testing.
 
+### Windows startup troubleshooting
+
+If an older Windows checkout reports that the mobile container exited, update
+and rebuild it:
+
+```powershell
+git pull origin main
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+The build normalizes the Expo startup shell script to Linux line endings, and
+Git attributes preserve those line endings on fresh Windows checkouts. The
+Windows launcher skips self-assigned `169.254.*.*` addresses, disconnected
+interfaces, and addresses that are not ready. If only such addresses exist,
+connect the laptop to Wi-Fi or a phone hotspot before retrying. An optional
+`LAN_IP` override must also be a usable IPv4 address.
+
+On startup failure, the launcher prints recent service logs automatically. To
+inspect them separately, run `docker compose logs --tail=60 mobile app`. Rebuilding
+does not require deleting the PostgreSQL volume.
+
 ## Run locally without containers for the apps
 
 Use **Node.js 26**, **Python 3.14**, and Docker with Compose. A physical iOS or

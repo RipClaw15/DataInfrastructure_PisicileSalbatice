@@ -2,9 +2,12 @@
 param([switch]$WebOnly)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+. (Join-Path $PSScriptRoot 'tools/network.ps1')
 
 function Confirm-DockerCommand {
-    if ($LASTEXITCODE -ne 0) { throw 'Docker command failed. See the output above.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Docker command failed. Check the service logs printed above.'
+    }
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -23,14 +26,14 @@ try {
         Confirm-DockerCommand
         $configuredIp = $composeEnvironment | Where-Object { $_ -match '^LAN_IP=' } | Select-Object -Last 1
         $lanIp = if ($configuredIp) { $configuredIp.Substring(7).Trim() } else { '' }
-        if (-not $lanIp) {
-            $network = Get-NetIPConfiguration | Where-Object {
-                $_.IPv4DefaultGateway -and $_.IPv4Address
-            } | Sort-Object { $_.NetIPv4Interface.InterfaceMetric } | Select-Object -First 1
-            $lanIp = $network.IPv4Address.IPAddress | Select-Object -First 1
+        if ($lanIp -and -not (Test-LanIPv4 $lanIp)) {
+            throw "LAN_IP '$lanIp' is not a usable IPv4 address. Clear LAN_IP in .env/the environment and retry on Wi-Fi."
         }
         if (-not $lanIp) {
-            throw 'Connect to Wi-Fi and retry, set $env:LAN_IP to your laptop IP, or use .\start.ps1 -WebOnly.'
+            $lanIp = Select-LanIPv4 @(Get-NetIPConfiguration)
+        }
+        if (-not $lanIp) {
+            throw 'No usable network address found. Connect to Wi-Fi and retry, or use .\start.ps1 -WebOnly.'
         }
         $env:LAN_IP = $lanIp
         Write-Host "Using laptop address: $lanIp (phone and laptop must share a network)."
@@ -38,7 +41,12 @@ try {
     } else {
         docker compose up --build -d --wait --wait-timeout 180
     }
-    Confirm-DockerCommand
+    $startupExit = $LASTEXITCODE
+    if ($startupExit -ne 0) {
+        docker compose --profile mobile ps -a
+        docker compose --profile mobile logs --tail=60 app mobile
+        throw "Docker startup failed (exit $startupExit). See the service logs above."
+    }
     $published = docker compose port app 8000 | Select-Object -First 1
     Confirm-DockerCommand
     $appPort = ($published -split ':')[-1]
