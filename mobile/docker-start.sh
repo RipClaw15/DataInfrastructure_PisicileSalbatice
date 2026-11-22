@@ -10,5 +10,5 @@ fi
 echo "Open in Expo Go: exp://${LAN_IP}:${METRO_PORT:-8081}"
 echo "Phone API: ${EXPO_PUBLIC_API_URL}"
 echo "Dashboard: ${EXPO_PUBLIC_API_URL}/dashboard/"
-# Offline mode uses LAN and skips Expo network checks.
-exec npx expo start --offline --go --port "${METRO_PORT:-8081}"
+# Expo Go checks the CLI account; LAN mode allows resolving that identity.
+exec npx expo start --lan --go --port "${METRO_PORT:-8081}"

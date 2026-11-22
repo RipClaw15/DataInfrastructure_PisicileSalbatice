@@ -98,9 +98,21 @@ readiness and print the links. The API documentation is at
 <http://localhost:8000/docs>, the landing page at <http://localhost:8000/>, and the
 database readiness check at <http://localhost:8000/ready>.
 
-If Expo asks for an account, sign into Expo Go and run
-`docker compose exec mobile npx expo login` with the same account, then restart
-the mobile service.
+Expo Go may require the development server and phone to use the same Expo
+account. If it reports that Expo CLI is not signed in, run from the repository:
+
+```bash
+docker compose exec -e CI=0 mobile npx expo login
+docker compose restart mobile
+```
+
+Enter the **same account as Expo Go** in the terminal prompts, then reopen the
+Expo link on the phone. `CI=0` enables the interactive login prompt inside the
+container. The CLI runs in LAN mode with internet available to resolve your
+account; the API and database still run locally. The login is kept in a named
+Docker volume across container rebuilds. To check the account, run
+`docker compose exec mobile npx expo whoami`. To sign out, run
+`docker compose exec mobile npx expo logout`.
 
 For unusual network setups (such as a VPN choosing the wrong interface), you can
 optionally override `LAN_IP` in the root `.env` using `.env.example`, then rerun
@@ -128,7 +140,8 @@ synthetic session in the local database. It does not simulate physical sensors
 or replace a real-device UI test.
 
 To **delete all local database data**, stop with
-`docker compose --profile mobile down --volumes` instead. Database data otherwise
+`docker compose --profile mobile down --volumes` instead. This also removes the
+saved Expo login, so sign in again afterward. Database data otherwise
 persists in a named Docker volume. After resetting the database, reload/reopen the
 phone app and generate a new pairing code.
 

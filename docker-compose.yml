@@ -53,6 +53,8 @@ services:
       METRO_PORT: ${METRO_PORT:-8081}
       CI: "1"
       EXPO_NO_TELEMETRY: "1"
+    volumes:
+      - expo_auth:/root/.expo
     ports:
       - "${METRO_PORT:-8081}:${METRO_PORT:-8081}"
     depends_on:
@@ -67,3 +69,4 @@ services:
 
 volumes:
   postgres_data:
+  expo_auth:
