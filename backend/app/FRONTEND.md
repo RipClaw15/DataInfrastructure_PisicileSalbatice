@@ -38,7 +38,6 @@ code, and team contracts are unchanged.
 
 ## Next step
 
-Follow `contracts/API_CONTRACT.md` and `contracts/backend/BACKEND.md` for readings,
-arm/disarm, status, and alert integration. The actual reference implementation
-currently lives in `mobile/dev-server/server.py`, not the deployed FastAPI app.
+The API (readings, guarding, status, alerts, pairing) is described in
+`contracts/API_CONTRACT.md` and implemented by the FastAPI app in `backend/app/`.
 Agree the live dashboard design before replacing this preview with real state.
