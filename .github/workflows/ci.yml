@@ -93,6 +93,9 @@ jobs:
       - name: Validate address selection and launcher syntax
         shell: pwsh
         run: ./tools/test_network.ps1
+      - name: Exercise complete launcher with dual-stack Docker output
+        shell: pwsh
+        run: ./tools/test_launcher.ps1
       - name: Check Linux shell scripts retain LF line endings
         shell: pwsh
         run: |

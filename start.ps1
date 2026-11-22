@@ -5,8 +5,9 @@ Set-Location $PSScriptRoot
 . (Join-Path $PSScriptRoot 'tools/network.ps1')
 
 function Confirm-DockerCommand {
+    param([string]$Operation = 'Docker command')
     if ($LASTEXITCODE -ne 0) {
-        throw 'Docker command failed. Check the service logs printed above.'
+        throw "$Operation failed (exit $LASTEXITCODE). See the Docker output above."
     }
 }
 
@@ -47,14 +48,19 @@ try {
         docker compose --profile mobile logs --tail=60 app mobile
         throw "Docker startup failed (exit $startupExit). See the service logs above."
     }
-    $published = docker compose port app 8000 | Select-Object -First 1
-    Confirm-DockerCommand
-    $appPort = ($published -split ':')[-1]
+    # Consume all native output before selecting a binding. Select-Object -First
+    # can otherwise close Docker's pipe early when IPv4 and IPv6 are both listed.
+    $published = @(docker compose port app 8000)
+    Confirm-DockerCommand 'Reading published app port'
+    if ($published.Count -eq 0) { throw 'Docker returned no published app port.' }
+    $appPort = ($published[0].Trim() -split ':')[-1]
     Write-Host "Dashboard: http://localhost:$appPort/dashboard/"
     Write-Host "API docs:  http://localhost:$appPort/docs"
     if (-not $WebOnly) {
-        $metroPort = (docker compose exec -T mobile printenv METRO_PORT).Trim()
-        Confirm-DockerCommand
+        $metroOutput = @(docker compose exec -T mobile printenv METRO_PORT)
+        Confirm-DockerCommand 'Reading Expo port'
+        if ($metroOutput.Count -eq 0) { throw 'Docker returned no Expo port.' }
+        $metroPort = $metroOutput[0].Trim()
         Write-Host "Open in Expo Go: exp://${lanIp}:$metroPort"
         Write-Host 'Then tap Show dashboard code in the phone app and enter it in the dashboard.'
     }
